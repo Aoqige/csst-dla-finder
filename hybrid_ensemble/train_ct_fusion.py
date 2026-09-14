@@ -1,10 +1,18 @@
 #!/usr/bin/env python3
-"""Train one feature-level, dual-backbone DLA fusion model."""
+"""Train a CNN + Transformer feature-level DLA fusion model.
+
+Both towers are loaded from pretrained checkpoints (frozen by default) and a
+small trainable fusion head learns a correction.  The CNN tower consumes the
+dataset channels (``flux`` or ``flux_aug``); the Transformer tower consumes the
+first six channels only, so both runs share an identical transformer input and
+the only variable is what the CNN tower sees.
+"""
 from __future__ import annotations
 
 from pathlib import Path
 import argparse
 import json
+import math
 import sys
 
 import numpy as np
@@ -20,8 +28,8 @@ sys.path.insert(0, "/home/heruihua")
 from csst_dla.scoring import labels_to_truth, score_catalog
 from decode import decode_validation_catalog
 from evaluate_hybrid import load_checkpoint, resolve_device
-from feature_fusion import DualFusionTrainDataset, DualTowerFusionNet
-from csst_dla_wzx_pkg.inference import load_model_from_checkpoint
+from data import HybridTrainDataset
+from feature_fusion_ct import CTFusionNet
 
 
 def focal_bce_with_logits(logits, target, alpha=0.85, gamma=2.0, weight=None):
@@ -39,15 +47,44 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--targets", required=True)
     parser.add_argument("--train-fits", required=True)
-    parser.add_argument("--dilated-checkpoint", required=True)
-    parser.add_argument("--wzx-checkpoint", required=True)
+    parser.add_argument("--cnn-checkpoint", required=True)
+    parser.add_argument(
+        "--transformer-checkpoint",
+        default=None,
+        help="Pretrained transformer checkpoint. Omit when --transformer-from-scratch is set.",
+    )
+    parser.add_argument(
+        "--transformer-from-scratch",
+        action="store_true",
+        help="Build the transformer tower randomly (pure-attention v0 backbone, no conv "
+             "stem) instead of loading a checkpoint -- used for the end-to-end "
+             "heterogeneous run.",
+    )
+    parser.add_argument("--transformer-d-model", type=int, default=192)
+    parser.add_argument("--transformer-nhead", type=int, default=8)
+    parser.add_argument("--transformer-num-layers", type=int, default=4)
+    parser.add_argument("--transformer-dim-ff", type=int, default=768)
+    parser.add_argument("--transformer-dropout", type=float, default=0.1)
+    parser.add_argument("--freeze-cnn", dest="freeze_cnn", action="store_true", default=None)
+    parser.add_argument("--no-freeze-cnn", dest="freeze_cnn", action="store_false")
+    parser.add_argument("--freeze-transformer", dest="freeze_transformer", action="store_true", default=None)
+    parser.add_argument("--no-freeze-transformer", dest="freeze_transformer", action="store_false")
     parser.add_argument("--out-dir", required=True)
-    parser.add_argument("--merge-mode", choices=["plain", "residual_dilated", "residual_wzx"], required=True)
+    parser.add_argument(
+        "--merge-mode",
+        choices=["plain", "residual_transformer", "residual_cnn"],
+        default="residual_transformer",
+    )
     parser.add_argument("--fusion-width", type=int, default=128)
     parser.add_argument("--fusion-depth", type=int, default=3)
     parser.add_argument("--epochs", type=int, default=8)
-    parser.add_argument("--batch-size", type=int, default=128)
-    parser.add_argument("--lr", type=float, default=8e-4)
+    parser.add_argument("--batch-size", type=int, default=512)
+    parser.add_argument("--lr", type=float, default=5e-4)
+    parser.add_argument("--lr-schedule", choices=["none", "cosine"], default="none",
+                        help="none=constant lr; cosine=warmup then cosine decay to 0. "
+                             "Recommended when the transformer tower is trained from scratch.")
+    parser.add_argument("--lr-warmup-epochs", type=float, default=1.0,
+                        help="Linear warmup length (in epochs). Only used when --lr-schedule=cosine.")
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--threshold", type=float, default=0.45)
     parser.add_argument("--min-z-dla", type=float, default=1.10)
@@ -66,10 +103,8 @@ def parse_args() -> argparse.Namespace:
 
 
 def loss_for_batch(model, batch, device, args):
-    hybrid, wzx, zq, center, region, lognhi, mask, offset, offset_weight, count, _ = batch
+    hybrid, center, region, lognhi, mask, offset, offset_weight, count, _ = batch
     hybrid = hybrid.to(device, non_blocking=True)
-    wzx = wzx.to(device, non_blocking=True)
-    zq = zq.to(device, non_blocking=True)
     center = center.to(device, non_blocking=True)
     region = region.to(device, non_blocking=True)
     lognhi = lognhi.to(device, non_blocking=True)
@@ -77,7 +112,7 @@ def loss_for_batch(model, batch, device, args):
     offset = offset.to(device, non_blocking=True)
     offset_weight = offset_weight.to(device, non_blocking=True)
     count = count.to(device, non_blocking=True)
-    output = model(hybrid, wzx, zq)
+    output = model(hybrid)
     high_mask = ((lognhi >= args.high_lognhi_threshold) & (mask > 0)).float()
     center_weight = 1.0 + (args.high_lognhi_center_weight - 1.0) * high_mask
     center_loss = focal_bce_with_logits(output["center_logits"], center, weight=center_weight)
@@ -107,8 +142,8 @@ def predict_validation(model, loader, device):
     model.eval()
     heat, lognhi, offset, count_logits, rows = [], [], [], [], []
     for batch in loader:
-        hybrid, wzx, zq = batch[:3]
-        output = model(hybrid.to(device), wzx.to(device), zq.to(device))
+        hybrid = batch[0]
+        output = model(hybrid.to(device))
         heat.append(torch.sigmoid(output["center_logits"]).cpu().numpy())
         lognhi.append((20.3 + output["lognhi_raw"]).cpu().numpy())
         offset.append(output["offset_raw"].cpu().numpy())
@@ -123,7 +158,7 @@ def predict_validation(model, loader, device):
     }
 
 
-def save_checkpoint(path: Path, model, args, epoch_row: dict, dilated_config: dict, wzx_config: dict) -> None:
+def save_checkpoint(path: Path, model, args, epoch_row: dict, cnn_config: dict, transformer_config: dict) -> None:
     torch.save(
         {
             "model_state": model.state_dict(),
@@ -132,12 +167,14 @@ def save_checkpoint(path: Path, model, args, epoch_row: dict, dilated_config: di
                 "fusion_width": args.fusion_width,
                 "fusion_depth": args.fusion_depth,
                 "freeze_backbones": not args.train_backbones,
-                "dilated_checkpoint": args.dilated_checkpoint,
-                "wzx_checkpoint": args.wzx_checkpoint,
-                "dilated_config": dilated_config,
-                "wzx_config": wzx_config,
-                "dilated_input_mode": args.dilated_input_mode,
-                "wzx_feature_mode": args.wzx_feature_mode,
+                "freeze_cnn": bool(model.freeze_cnn),
+                "freeze_transformer": bool(model.freeze_transformer),
+                "cnn_checkpoint": args.cnn_checkpoint,
+                "transformer_checkpoint": args.transformer_checkpoint,
+                "transformer_from_scratch": bool(args.transformer_from_scratch),
+                "cnn_config": cnn_config,
+                "transformer_config": transformer_config,
+                "cnn_input_mode": args.cnn_input_mode,
             },
             "threshold": args.threshold,
             "score": epoch_row,
@@ -184,60 +221,113 @@ def main() -> None:
     out_dir = Path(args.out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     device = resolve_device(args.device)
-    dilated_wrapper, dilated_config = load_checkpoint(args.dilated_checkpoint, device)
-    wzx_model, wzx_config = load_model_from_checkpoint(args.wzx_checkpoint, device)
-    args.dilated_input_mode = str(dilated_config.get("input_mode", "all"))
-    args.wzx_feature_mode = str(wzx_config.get("feature_mode", "all"))
+
+    cnn_model, cnn_config = load_checkpoint(args.cnn_checkpoint, device)
+    cnn_backbone = cnn_model if isinstance(cnn_model, nn.Module) else cnn_model.model
+    args.cnn_input_mode = str(cnn_config.get("input_mode", "flux"))
+    if args.transformer_from_scratch:
+        from models.transformer_5head import _build_transformer_5head
+
+        transformer_model = _build_transformer_5head(
+            in_channels=6,
+            d_model=args.transformer_d_model,
+            nhead=args.transformer_nhead,
+            num_layers=args.transformer_num_layers,
+            dim_ff=args.transformer_dim_ff,
+            dropout=args.transformer_dropout,
+            use_offset=True,
+            max_len=1024,
+        )
+        transformer_config = {
+            "arch": "transformer",
+            "in_channels": 6,
+            "d_model": args.transformer_d_model,
+            "nhead": args.transformer_nhead,
+            "num_layers": args.transformer_num_layers,
+            "dim_ff": args.transformer_dim_ff,
+            "dropout": args.transformer_dropout,
+            "source": "from_scratch_pure_attention",
+        }
+    else:
+        if not args.transformer_checkpoint:
+            raise SystemExit("--transformer-checkpoint is required unless --transformer-from-scratch is set")
+        transformer_model, transformer_config = load_checkpoint(args.transformer_checkpoint, device)
     print(
         json.dumps(
             {
                 "stage": "loading_datasets",
                 "merge_mode": args.merge_mode,
-                "dilated_input_mode": args.dilated_input_mode,
-                "wzx_feature_mode": args.wzx_feature_mode,
+                "cnn_input_mode": args.cnn_input_mode,
+                "cnn_arch": str(cnn_config.get("arch", "dilated")),
+                "transformer_arch": str(transformer_config.get("arch", "transformer_conv_stem")),
             },
             ensure_ascii=False,
         ),
         flush=True,
     )
-    train_ds = DualFusionTrainDataset(
+
+    train_ds = HybridTrainDataset(
         args.targets,
         args.train_fits,
         "train",
-        args.max_train_samples,
-        dilated_input_mode=args.dilated_input_mode,
-        wzx_feature_mode=args.wzx_feature_mode,
+        input_mode=args.cnn_input_mode,
+        max_samples=args.max_train_samples,
+        cache_channels=True,
     )
-    val_ds = DualFusionTrainDataset(
+    val_ds = HybridTrainDataset(
         args.targets,
         args.train_fits,
         "val",
-        args.max_val_samples,
-        dilated_input_mode=args.dilated_input_mode,
-        wzx_feature_mode=args.wzx_feature_mode,
+        input_mode=args.cnn_input_mode,
+        max_samples=args.max_val_samples,
+        cache_channels=True,
     )
     print(json.dumps({"stage": "datasets_ready", "train": len(train_ds), "val": len(val_ds)}, ensure_ascii=False), flush=True)
     train_loader = DataLoader(train_ds, batch_size=args.batch_size, shuffle=True, num_workers=0, pin_memory=False)
     val_loader = DataLoader(val_ds, batch_size=args.batch_size, shuffle=False, num_workers=0, pin_memory=False)
-    model = DualTowerFusionNet(
-        dilated_wrapper.model,
-        wzx_model,
+
+    model = CTFusionNet(
+        cnn_backbone,
+        transformer_model,
         merge_mode=args.merge_mode,
         width=args.fusion_width,
         depth=args.fusion_depth,
         freeze_backbones=not args.train_backbones,
+        freeze_cnn=args.freeze_cnn,
+        freeze_transformer=args.freeze_transformer,
     ).to(device)
+    trainable = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    print(json.dumps({"stage": "model_built", "trainable_params": trainable}, ensure_ascii=False), flush=True)
+
     optimizer = torch.optim.AdamW((p for p in model.parameters() if p.requires_grad), lr=args.lr, weight_decay=1e-4)
+    scheduler = None
+    if args.lr_schedule == "cosine":
+        steps_per_epoch = max(1, len(train_loader))
+        total_steps = args.epochs * steps_per_epoch
+        warmup_steps = int(args.lr_warmup_epochs * steps_per_epoch)
+        warmup_steps = min(warmup_steps, max(1, total_steps - 1))
+
+        def lr_lambda(step: int) -> float:
+            if step < warmup_steps:
+                return float(step + 1) / float(warmup_steps)
+            progress = (step - warmup_steps) / max(1, total_steps - warmup_steps)
+            return 0.5 * (1.0 + math.cos(math.pi * min(1.0, progress)))
+
+        scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda)
+        print(json.dumps({"stage": "scheduler_built", "schedule": args.lr_schedule,
+                          "total_steps": total_steps, "warmup_steps": warmup_steps,
+                          "base_lr": args.lr}), flush=True)
     history = []
     best_score = -float("inf")
-    # Residual modes are intentionally initialized as a source model plus a
-    # zero correction.  Record this epoch-0 control so training cannot hide a
-    # regression by overwriting the usable base checkpoint.
+    best_epoch = 0
     if args.merge_mode != "plain":
         initial = score_validation(model, val_loader, val_ds, device, args, epoch=0)
         history.append(initial)
         best_score = initial["final_score"]
-        save_checkpoint(out_dir / "initial_model.pt", model, args, initial, dilated_config, wzx_config)
+        save_checkpoint(out_dir / "initial_model.pt", model, args, initial, cnn_config, transformer_config)
+        # epoch 0 is the frozen-base reference; seed best_model.pt with it so a
+        # "best" checkpoint always exists even if no trained epoch beats it.
+        save_checkpoint(out_dir / "best_model.pt", model, args, initial, cnn_config, transformer_config)
         print(json.dumps(initial, ensure_ascii=False), flush=True)
     for epoch in range(1, args.epochs + 1):
         model.train()
@@ -248,6 +338,8 @@ def main() -> None:
             optimizer.zero_grad(set_to_none=True)
             loss.backward()
             optimizer.step()
+            if scheduler is not None:
+                scheduler.step()
             total_loss += float(loss.detach().cpu()) * len(batch[0])
             if batch_index == 1 or batch_index % progress_every == 0:
                 print(json.dumps({"progress": "train", "epoch": epoch, "batch": batch_index, "total_batches": len(train_loader)}, ensure_ascii=False), flush=True)
@@ -256,11 +348,12 @@ def main() -> None:
         print(json.dumps(row, ensure_ascii=False), flush=True)
         if row["final_score"] > best_score:
             best_score = row["final_score"]
-            save_checkpoint(out_dir / "best_model.pt", model, args, row, dilated_config, wzx_config)
-    save_checkpoint(out_dir / "model.pt", model, args, history[-1], dilated_config, wzx_config)
+            best_epoch = epoch
+            save_checkpoint(out_dir / "best_model.pt", model, args, row, cnn_config, transformer_config)
+    save_checkpoint(out_dir / "model.pt", model, args, history[-1], cnn_config, transformer_config)
     (out_dir / "history.json").write_text(json.dumps(history, indent=2), encoding="utf-8")
     (out_dir / "training_args.json").write_text(json.dumps(vars(args), indent=2), encoding="utf-8")
-    print(f"wrote {out_dir / 'best_model.pt'}")
+    print(f"best_model.pt = epoch {best_epoch} (val_final={best_score:.4f}) -> {out_dir / 'best_model.pt'}")
 
 
 if __name__ == "__main__":

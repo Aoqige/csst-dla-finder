@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate a submission from a trained dual-tower feature fusion checkpoint."""
+"""Generate a submission from a trained CNN + Transformer fusion checkpoint."""
 from __future__ import annotations
 
 from pathlib import Path
@@ -9,6 +9,7 @@ import sys
 
 import numpy as np
 import torch
+from torch import nn
 from torch.utils.data import DataLoader
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -17,9 +18,9 @@ sys.path.insert(0, str(ROOT / "hybrid_ensemble"))
 sys.path.insert(0, "/home/heruihua")
 
 from evaluate_hybrid import load_checkpoint, resolve_device
-from feature_fusion import DualFusionTestDataset, DualTowerFusionNet
+from data import HybridTestDataset
+from feature_fusion_ct import CTFusionNet
 from predict_hybrid import write_submission
-from csst_dla_wzx_pkg.inference import load_model_from_checkpoint
 
 
 def parse_args() -> argparse.Namespace:
@@ -38,15 +39,33 @@ def parse_args() -> argparse.Namespace:
 def load_fusion(path: str | Path, device: torch.device):
     checkpoint = torch.load(path, map_location=device)
     config = checkpoint["config"]
-    dilated, _ = load_checkpoint(config["dilated_checkpoint"], device)
-    wzx, _ = load_model_from_checkpoint(config["wzx_checkpoint"], device)
-    model = DualTowerFusionNet(
-        dilated.model,
-        wzx,
+    cnn_model, _ = load_checkpoint(config["cnn_checkpoint"], device)
+    cnn_backbone = cnn_model if isinstance(cnn_model, nn.Module) else cnn_model.model
+    if config.get("transformer_from_scratch"):
+        from models.transformer_5head import _build_transformer_5head
+
+        tcfg = config.get("transformer_config", {})
+        transformer_model = _build_transformer_5head(
+            in_channels=int(tcfg.get("in_channels", 6)),
+            d_model=int(tcfg.get("d_model", 192)),
+            nhead=int(tcfg.get("nhead", 8)),
+            num_layers=int(tcfg.get("num_layers", 4)),
+            dim_ff=int(tcfg.get("dim_ff", 768)),
+            dropout=float(tcfg.get("dropout", 0.1)),
+            use_offset=True,
+            max_len=1024,
+        )
+    else:
+        transformer_model, _ = load_checkpoint(config["transformer_checkpoint"], device)
+    model = CTFusionNet(
+        cnn_backbone,
+        transformer_model,
         merge_mode=config["merge_mode"],
         width=int(config["fusion_width"]),
         depth=int(config["fusion_depth"]),
         freeze_backbones=bool(config["freeze_backbones"]),
+        freeze_cnn=config.get("freeze_cnn"),
+        freeze_transformer=config.get("freeze_transformer"),
     ).to(device)
     model.load_state_dict(checkpoint["model_state"])
     model.eval()
@@ -57,8 +76,8 @@ def load_fusion(path: str | Path, device: torch.device):
 def predict(model, dataset, device: torch.device, batch_size: int) -> dict[str, np.ndarray]:
     loader = DataLoader(dataset, batch_size=batch_size, shuffle=False, pin_memory=device.type == "cuda")
     heat, lognhi, offset, count_logits, rows = [], [], [], [], []
-    for hybrid, wzx, zq, row in loader:
-        output = model(hybrid.to(device), wzx.to(device), zq.to(device))
+    for hybrid, row in loader:
+        output = model(hybrid.to(device))
         heat.append(torch.sigmoid(output["center_logits"]).cpu().numpy())
         lognhi.append((20.3 + output["lognhi_raw"]).cpu().numpy())
         offset.append(output["offset_raw"].cpu().numpy())
@@ -78,17 +97,8 @@ def main() -> None:
     device = resolve_device(args.device)
     model, checkpoint = load_fusion(args.checkpoint, device)
     fusion_config = checkpoint["config"]
-    dilated_input_mode = str(
-        fusion_config.get("dilated_input_mode", fusion_config.get("dilated_config", {}).get("input_mode", "all"))
-    )
-    wzx_feature_mode = str(
-        fusion_config.get("wzx_feature_mode", fusion_config.get("wzx_config", {}).get("feature_mode", "all"))
-    )
-    dataset = DualFusionTestDataset(
-        args.test_fits,
-        dilated_input_mode=dilated_input_mode,
-        wzx_feature_mode=wzx_feature_mode,
-    )
+    cnn_input_mode = str(fusion_config.get("cnn_input_mode", "flux"))
+    dataset = HybridTestDataset(args.test_fits, input_mode=cnn_input_mode)
     prediction = predict(model, dataset, device, args.batch_size)
     config = {
         "threshold": float(args.threshold if args.threshold is not None else checkpoint.get("threshold", 0.45)),

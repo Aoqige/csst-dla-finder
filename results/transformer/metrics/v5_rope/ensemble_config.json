@@ -1,0 +1,1 @@
+{"models": [{"path": "/home/heruihua/csst_dla_runs/20260911/transformer_conv_stem_v5_rope/best_model.pt", "weight": 1.0}], "threshold": 0.45, "min_distance": 10, "min_z_dla": 1.1, "use_offset": true, "lognhi_clip_min": 20.3, "lognhi_clip_max": 22.5}

@@ -26,3 +26,5 @@ splits/*.npz
 # Notebooks
 .ipynb_checkpoints/
 
+# Exception: reference checkpoints and score files that are committed on purpose
+!results/transformer/**
