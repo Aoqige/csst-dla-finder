@@ -1,0 +1,31 @@
+{
+  "fusion": "average_predictions(elementwise mean of all five heads)",
+  "members": [
+    {
+      "name": "v3c",
+      "path": "/home/heruihua/csst_dla_runs/20260911/transformer_v3c_lognhi/best_model.pt",
+      "weight": 1.0
+    },
+    {
+      "name": "v5",
+      "path": "/home/heruihua/csst_dla_runs/20260911/transformer_conv_stem_v5_rope/best_model.pt",
+      "weight": 1.0
+    },
+    {
+      "name": "sota",
+      "path": "/home/heruihua/csst_dla_runs/20260904/feature_no_clean_flux_context_v1/best_model.pt",
+      "weight": 1.0
+    }
+  ],
+  "threshold": 0.45,
+  "min_distance": 10,
+  "min_z_dla": 1.1,
+  "use_offset": true,
+  "count_bias": [
+    0.0,
+    1.25,
+    1.25
+  ],
+  "lognhi_clip_min": 20.3,
+  "lognhi_clip_max": 22.5
+}

@@ -1,0 +1,42 @@
+{
+  "members": [
+    "v3c",
+    "v5",
+    "sota"
+  ],
+  "summary": [
+    {
+      "bias": 1.0,
+      "dir": "/home/heruihua/csst_dla_runs/20260913/avg3_v3c_v5_sota/b1p0",
+      "final": 0.54922,
+      "det": 0.58094,
+      "param": 0.50164,
+      "compl": 0.55049,
+      "pur": 0.77087,
+      "n_pred": 1174,
+      "n_match": 905
+    },
+    {
+      "bias": 1.25,
+      "dir": "/home/heruihua/csst_dla_runs/20260913/avg3_v3c_v5_sota/b1p25",
+      "final": 0.55238,
+      "det": 0.5889,
+      "param": 0.49759,
+      "compl": 0.57299,
+      "pur": 0.72685,
+      "n_pred": 1296,
+      "n_match": 942
+    },
+    {
+      "bias": 1.5,
+      "dir": "/home/heruihua/csst_dla_runs/20260913/avg3_v3c_v5_sota/b1p5",
+      "final": 0.55235,
+      "det": 0.59121,
+      "param": 0.49406,
+      "compl": 0.58698,
+      "pur": 0.69675,
+      "n_pred": 1385,
+      "n_match": 965
+    }
+  ]
+}
