@@ -11,18 +11,20 @@ import os
 import subprocess
 import sys
 
+import _env  # noqa: E402
+
 import numpy as np
 
-HB = os.path.expanduser("~/csst-dla-finder/hybrid_ensemble")
+HB = str(_env.HYBRID)
 sys.path.insert(0, HB)
-sys.path.insert(0, os.path.expanduser("~/csst-dla-finder/src"))
+sys.path.insert(0, str(_env.SRC))
 
 from predict_hybrid import write_submission                 # noqa: E402
 import score_test                                           # noqa: E402
 from csst_dla.scoring import score_catalog                  # noqa: E402
 
-PY = "/home/dingjch/anaconda3/envs/ML_env/bin/python"
-TRUTH = "/data/aoqige/test_truth.fits"
+PY = _env.PYTHON
+TRUTH = _env.TEST_TRUTH
 MERGE = os.path.join(HB, "merge_predictions.py")
 SOTA_CSV = os.path.expanduser(
     "~/csst_dla_runs/20260904/feature_no_clean_flux_context_v1/predictions.csv")

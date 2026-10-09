@@ -20,8 +20,8 @@ from predict_hybrid import write_submission
 def main():
     p = argparse.ArgumentParser()
     p.add_argument("--ensemble-config", required=True)
-    p.add_argument("--test-fits", default="/data/aoqige/test.fits")
-    p.add_argument("--truth", default="/data/aoqige/test_truth.fits")
+    p.add_argument("--test-fits", default=_env.TEST_FITS)
+    p.add_argument("--truth", default=_env.TEST_TRUTH)
     p.add_argument("--out-dir", required=True)
     p.add_argument("--thresholds", default="0.30,0.35,0.40,0.45,0.50,0.55")
     p.add_argument("--batch-size", type=int, default=256)

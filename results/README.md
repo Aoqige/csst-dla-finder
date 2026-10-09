@@ -4,6 +4,15 @@ Everything in this directory is a **frozen reference artifact**. `.gitignore` ke
 `*.pt` / `*.json` / `*.csv` / `*.npz` out of the tree globally; this directory is
 whitelisted explicitly (`!results/**`).
 
+Re-check any of it without the challenge data:
+
+```bash
+python3 sota/verify.py
+```
+
+Add `--targets` / `--train-fits` to also reproduce the 0.687569327685616 VAL number
+from the bundled catalogue.
+
 ## `cnn-dual-tower/r48sh_seed51_ema_ep8/` — the CNN dual-tower SOTA (0.6876)
 
 | Path | Content |

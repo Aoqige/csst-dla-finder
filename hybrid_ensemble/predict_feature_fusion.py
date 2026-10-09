@@ -14,7 +14,7 @@ from torch.utils.data import DataLoader
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 sys.path.insert(0, str(ROOT / "hybrid_ensemble"))
-sys.path.insert(0, "/home/heruihua")
+sys.path.insert(0, str(ROOT / "vendor"))
 
 from evaluate_hybrid import load_checkpoint, resolve_device
 from feature_fusion import DualFusionTestDataset, DualTowerFusionNet

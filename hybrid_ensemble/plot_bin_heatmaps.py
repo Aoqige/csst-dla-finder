@@ -10,7 +10,7 @@ Reproduces the layout of the reference figure:
 Matching = src/csst_dla/scoring.py greedy_match (dv_limit 600 km/s), the official scorer.
 
 Usage (on dataCop-119):
-  P=/home/dingjch/anaconda3/envs/ML_env/bin/python
+  P=python3
   $P plot_bin_heatmaps.py --models tf_sota,cnn_sota,fuse_sota \
       --outdir ~/csst_dla_runs/20260912/binfigs --combined
 """
@@ -20,6 +20,8 @@ import argparse
 import os
 import sys
 
+import _env  # noqa: E402
+
 import numpy as np
 import matplotlib
 
@@ -27,16 +29,16 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
 from matplotlib.colors import Normalize  # noqa: E402
 
-HB = os.path.expanduser("~/csst-dla-finder/hybrid_ensemble")
+HB = str(_env.HYBRID)
 sys.path.insert(0, HB)
-sys.path.insert(0, os.path.expanduser("~/csst-dla-finder/src"))
+sys.path.insert(0, str(_env.SRC))
 
 import score_test  # noqa: E402
 from csst_dla.scoring import greedy_match  # noqa: E402
 
-RUNS = os.path.expanduser("~/csst_dla_runs")
-TEST_FITS = "/data/aoqige/test.fits"
-TRUTH = "/data/aoqige/test_truth.fits"
+RUNS = str(_env.RUNS)
+TEST_FITS = _env.TEST_FITS
+TRUTH = _env.TEST_TRUTH
 SNR_FIELD = "SNR_GU"
 MIN_LOGNHI = 20.3
 DV_LIMIT = 600.0

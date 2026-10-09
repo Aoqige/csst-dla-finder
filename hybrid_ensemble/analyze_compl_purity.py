@@ -11,18 +11,20 @@ then answers three structural questions:
   Q3 (ranker) is there any per-candidate signal that separates TP from FP?
               AUC per feature + the compl/purity frontier obtained by ranking.
 
-Run:  CUDA_VISIBLE_DEVICES=0 /home/dingjch/anaconda3/envs/ML_env/bin/python analyze_compl_purity.py
+Run:  CUDA_VISIBLE_DEVICES=0 python3 analyze_compl_purity.py
 """
 import os
 import sys
+
+import _env  # noqa: E402
 
 import numpy as np
 import torch
 from torch.utils.data import DataLoader
 
-HB = os.path.expanduser("~/csst-dla-finder/hybrid_ensemble")
+HB = str(_env.HYBRID)
 sys.path.insert(0, HB)
-sys.path.insert(0, os.path.expanduser("~/csst-dla-finder/src"))
+sys.path.insert(0, str(_env.SRC))
 
 from data import HybridTestDataset                          # noqa: E402
 from decode import predict_member, softmax, pick_peaks, pixel_to_wavelength  # noqa: E402
@@ -30,9 +32,9 @@ from evaluate_hybrid import load_checkpoint, resolve_device  # noqa: E402
 import score_test                                           # noqa: E402
 from csst_dla.scoring import C_KMS                          # noqa: E402
 
-TEST_FITS = "/data/aoqige/test.fits"
-TRUTH = "/data/aoqige/test_truth.fits"
-RUNS = os.path.expanduser("~/csst_dla_runs")
+TEST_FITS = _env.TEST_FITS
+TRUTH = _env.TEST_TRUTH
+RUNS = str(_env.RUNS)
 LYA = 1215.67
 
 TRANSFORMERS = [

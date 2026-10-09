@@ -10,21 +10,23 @@ This script asks where that scatter lives:
   * vs logNHI         -> weak-line dominated?
   * heavy tail        -> how much of the loss is a handful of grossly-off pairs?
 
-Run:  /home/dingjch/anaconda3/envs/ML_env/bin/python diagnose_dv.py <csv>
+Run:  python3 diagnose_dv.py <csv>
 """
 import os
 import sys
 
+import _env  # noqa: E402
+
 import numpy as np
 
-HB = os.path.expanduser("~/csst-dla-finder/hybrid_ensemble")
+HB = str(_env.HYBRID)
 sys.path.insert(0, HB)
-sys.path.insert(0, os.path.expanduser("~/csst-dla-finder/src"))
+sys.path.insert(0, str(_env.SRC))
 
 import score_test                                          # noqa: E402
 from csst_dla.scoring import score_catalog, greedy_match, C_KMS  # noqa: E402
 
-TRUTH = "/data/aoqige/test_truth.fits"
+TRUTH = _env.TEST_TRUTH
 WAVE_START, WAVE_STEP = 2554.0, 8.0
 LYA = 1215.67
 

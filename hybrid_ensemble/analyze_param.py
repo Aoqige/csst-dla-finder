@@ -7,22 +7,24 @@ and answers:
   * what would a single post-hoc z-shift (measured on val) buy?
   * per-member comparison, so we can see whether the union averaging already helps.
 
-Run:  /home/dingjch/anaconda3/envs/ML_env/bin/python analyze_param.py [csv ...]
+Run:  python3 analyze_param.py [csv ...]
 """
 import os
 import sys
 
+import _env  # noqa: E402
+
 import numpy as np
 
-HB = os.path.expanduser("~/csst-dla-finder/hybrid_ensemble")
+HB = str(_env.HYBRID)
 sys.path.insert(0, HB)
-sys.path.insert(0, os.path.expanduser("~/csst-dla-finder/src"))
+sys.path.insert(0, str(_env.SRC))
 
 import score_test                                          # noqa: E402
 from csst_dla.scoring import score_catalog, greedy_match, C_KMS  # noqa: E402
 
-TRUTH = "/data/aoqige/test_truth.fits"
-RUNS = os.path.expanduser("~/csst_dla_runs")
+TRUTH = _env.TEST_TRUTH
+RUNS = str(_env.RUNS)
 
 DEFAULT = [
     ("SOTA union_4way_v3", os.path.join(RUNS, "20260912/ensemble_4way_v3/predictions.csv")),

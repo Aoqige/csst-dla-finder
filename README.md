@@ -57,6 +57,7 @@ Detection term. The older `20260903` line (681 px) survives only inside the arch
 ```
 hybrid_ensemble/          core code (see hybrid_ensemble/README.md)
   data.py decode.py evaluate_hybrid.py model.py score_test.py tune_decode.py
+  _env.py                 environment-overridable paths for the tooling
   feature_fusion.py fuse_wzx_dilated.py
   train_feature_fusion.py predict_feature_fusion.py train_hybrid.py predict_hybrid.py
   train_transformer.py train_transformer_baseline.py
@@ -64,10 +65,47 @@ hybrid_ensemble/          core code (see hybrid_ensemble/README.md)
   analyze_* bench_tf_vs_cnn diagnose_* frontier_* sweep_* plot_bin_heatmaps ...
 src/csst_dla/             scoring / SNR / targets / FITS IO
 scripts/                  split and dense-target builders
+sota/verify.py            standalone self-check (see below)
 sota/drivers/             the drivers that produced the headline runs
 results/                  reference checkpoints, recipes and score reports
+vendor/csst_dla_wzx_pkg/  WZX tower package, bundled so the fusion model rebuilds
 docs/BRANCH_LEDGER.md     archived-branch ledger
 ```
+
+## Verify this branch
+
+```bash
+python3 sota/verify.py
+```
+
+Runs against the repository alone — no external paths, no challenge data. It checks
+that every module imports, that the committed library carries no machine-specific
+absolute paths, that all sources compile, and — for each of the four reference
+checkpoints — that it loads, matches its recorded tensor and parameter counts,
+**rebuilds from its own `config` block and loads with an exact key match**, and
+completes a forward pass emitting the five-head contract.
+
+Adding the challenge data enables the numeric check:
+
+```bash
+python3 sota/verify.py \
+  --targets   <cnn_targets_unified_seed42_sig15.npz> \
+  --train-fits <train_500k_GU_qlf.fits>
+```
+
+which rebuilds the VAL truth catalogue, re-scores the bundled prediction catalogue
+with the official scorer, and compares the result to the recorded 0.687569327685616.
+Both modes exit non-zero if anything fails.
+
+Two directories are exempt from the absolute-path check on purpose:
+`sota/drivers/` (verbatim historical run records) and `vendor/` (third-party sources
+kept byte-identical to upstream).
+
+## Dependencies
+
+`requirements.txt` pins the versions the reference runs were produced with
+(Python 3.10). The only third-party package that used to live outside the repository
+— `csst_dla_wzx_pkg` — is now bundled under `vendor/`.
 
 ## Reference checkpoints
 

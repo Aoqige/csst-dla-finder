@@ -15,7 +15,7 @@ from torch.utils.data import DataLoader
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 sys.path.insert(0, str(ROOT / "hybrid_ensemble"))
-sys.path.insert(0, "/home/heruihua")
+sys.path.insert(0, str(ROOT / "vendor"))
 
 from csst_dla.scoring import labels_to_truth, score_catalog
 from decode import decode_validation_catalog

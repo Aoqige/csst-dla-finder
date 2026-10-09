@@ -29,14 +29,16 @@ from __future__ import annotations
 
 import os
 import sys
+
+import _env  # noqa: E402
 import time
 
 import numpy as np
 import astropy.io.fits as t
 from scipy.ndimage import median_filter, uniform_filter1d
 
-sys.path.insert(0, os.path.expanduser("~/csst-dla-finder/hybrid_ensemble"))
-sys.path.insert(0, os.path.expanduser("~/csst-dla-finder/src"))
+sys.path.insert(0, str(_env.HYBRID))
+sys.path.insert(0, str(_env.SRC))
 
 from data import (  # noqa: E402
     build_engineered_views,
@@ -50,8 +52,8 @@ LYA = 1215.67
 WIN = 6
 WLEN = 2 * WIN + 1
 MIN_Z = 1.10
-TEST = "/data/aoqige/test.fits"
-TRUTH = "/data/aoqige/test_truth.fits"
+TEST = _env.TEST_FITS
+TRUTH = _env.TEST_TRUTH
 
 # downward channels: absorption == negative excursion.  mf is pre sign-flipped.
 DOWNWARD = {"flux", "smooth", "resid", "grad", "sig", "trough"}

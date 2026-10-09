@@ -15,7 +15,7 @@ If most "far" picks land in spectra that contain no DLA, the heatmap is not
 mis-ranking within candidate sets -- it is firing on whole empty spectra, and the
 lever is a line-level gate (the count head), not a better candidate ranker.
 
-Run: /home/dingjch/anaconda3/envs/ML_env/bin/python -u diagnose_selection.py
+Run: python3 -u diagnose_selection.py
 """
 from __future__ import annotations
 
@@ -23,10 +23,12 @@ import json
 import os
 import sys
 
+import _env  # noqa: E402
+
 import numpy as np
 
-for p in (os.path.expanduser("~/csst-dla-finder/hybrid_ensemble"),
-          os.path.expanduser("~/csst-dla-finder/src")):
+for p in (str(_env.HYBRID),
+          str(_env.SRC)):
     if p not in sys.path:
         sys.path.insert(0, p)
 

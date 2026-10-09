@@ -6,22 +6,24 @@ Reads one or more predictions.csv, re-scores them with the official scorer, and 
   3. the two Param sub-terms and how sensitive Final is to std_dv / std_dlognhi,
   4. the matched-pair dv distribution (core vs long tail).
 
-Run:  /home/dingjch/anaconda3/envs/ML_env/bin/python analyze_headroom.py  [csv ...]
+Run:  python3 analyze_headroom.py  [csv ...]
 """
 import os
 import sys
 
+import _env  # noqa: E402
+
 import numpy as np
 
-HB = os.path.expanduser("~/csst-dla-finder/hybrid_ensemble")
+HB = str(_env.HYBRID)
 sys.path.insert(0, HB)
-sys.path.insert(0, os.path.expanduser("~/csst-dla-finder/src"))
+sys.path.insert(0, str(_env.SRC))
 
 import score_test                                          # noqa: E402
 from csst_dla.scoring import score_catalog, greedy_match, C_KMS  # noqa: E402
 
-TRUTH = "/data/aoqige/test_truth.fits"
-RUNS = os.path.expanduser("~/csst_dla_runs")
+TRUTH = _env.TEST_TRUTH
+RUNS = str(_env.RUNS)
 
 DEFAULT = [
     ("SOTA ensemble_4way_v3", os.path.join(RUNS, "20260912/ensemble_4way_v3/predictions.csv")),

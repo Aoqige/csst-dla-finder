@@ -1,21 +1,23 @@
 """Characterise the 303 truths that NO member sees (the model-failure floor) and the 86 that
 are visible but z-shifted, using the cached pool.
 
-Run:  /home/dingjch/anaconda3/envs/ML_env/bin/python describe_misses.py
+Run:  python3 describe_misses.py
 """
 import os
 import sys
 
+import _env  # noqa: E402
+
 import numpy as np
 
-HB = os.path.expanduser("~/csst-dla-finder/hybrid_ensemble")
+HB = str(_env.HYBRID)
 sys.path.insert(0, HB)
-sys.path.insert(0, os.path.expanduser("~/csst-dla-finder/src"))
+sys.path.insert(0, str(_env.SRC))
 
 import score_test                                           # noqa: E402
 from csst_dla.scoring import C_KMS                           # noqa: E402
 
-TRUTH = "/data/aoqige/test_truth.fits"
+TRUTH = _env.TEST_TRUTH
 CACHE = "/tmp/pool_votes.npz"
 
 

@@ -1,3 +1,11 @@
-numpy
-torch
-
+# Runtime requirements.
+# Versions the reference runs were produced with (Python 3.10.16).
+numpy==1.26.4
+scipy==1.15.2
+astropy==6.1.7
+pandas==2.2.3
+tqdm==4.67.1
+matplotlib==3.10.0
+scikit-learn==1.7.2
+# torch is CUDA-dependent; the reference runs used 2.5.1 (cu124).
+torch>=2.1

@@ -7,7 +7,7 @@ pipeline* (per-member threshold 0.45 + per-member count_bias, then union merge).
 This script rebuilds exactly that on val from the cached member predictions, so
 the verifier table has an apples-to-apples baseline.
 
-Run: /home/dingjch/anaconda3/envs/ML_env/bin/python -u val_union_baseline.py
+Run: python3 -u val_union_baseline.py
 """
 from __future__ import annotations
 
@@ -16,10 +16,12 @@ import json
 import os
 import sys
 
+import _env  # noqa: E402
+
 import numpy as np
 
-HB = os.path.expanduser("~/csst-dla-finder/hybrid_ensemble")
-for p in (HB, os.path.expanduser("~/csst-dla-finder/src")):
+HB = str(_env.HYBRID)
+for p in (HB, str(_env.SRC)):
     if p not in sys.path:
         sys.path.insert(0, p)
 
@@ -29,7 +31,7 @@ from decode import pick_peaks, pixel_to_wavelength, softmax          # noqa: E40
 
 CACHE = "/tmp/verifier/member_preds"
 TARGETS = os.path.expanduser("~/csst_dla_runs/20260903/common/cnn_targets_seed42.npz")
-TRAIN_FITS = "/data/aoqige/train_5e5.fits"
+TRAIN_FITS = _env.TRAIN_FITS
 LYA = 1215.67
 DEDUP_DV = 1500.0
 MEMBERS = {                       # per-member decode, exactly as shipped

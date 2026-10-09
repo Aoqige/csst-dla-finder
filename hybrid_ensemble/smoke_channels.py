@@ -2,16 +2,20 @@
 from __future__ import annotations
 
 import sys
+
+import _env  # noqa: E402
 import time
+from pathlib import Path
 
 import numpy as np
 
-sys.path.insert(0, "/home/heruihua/csst-dla-finder/src")
-sys.path.insert(0, "/home/heruihua/csst-dla-finder/hybrid_ensemble")
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "src"))
+sys.path.insert(0, str(ROOT / "hybrid_ensemble"))
 
 from data import HybridTestDataset, channel_count
 
-TESTS = "/data/aoqige/test.fits"
+TESTS = _env.TEST_FITS
 N = 300
 ref = None
 

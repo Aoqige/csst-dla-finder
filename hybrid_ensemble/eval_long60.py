@@ -6,19 +6,21 @@ Compares, under an identical harness:
 first as single members (count_bias 0 and 0.75), then by swapping long60 in for
 v3c inside the 4-way union ensemble (current SOTA 0.5455).
 
-Run:  CUDA_VISIBLE_DEVICES=2 /home/dingjch/anaconda3/envs/ML_env/bin/python eval_long60.py
+Run:  CUDA_VISIBLE_DEVICES=2 python3 eval_long60.py
 """
 import os
 import subprocess
 import sys
 
+import _env  # noqa: E402
+
 import numpy as np
 import torch
 from torch.utils.data import DataLoader
 
-HB = os.path.expanduser("~/csst-dla-finder/hybrid_ensemble")
+HB = str(_env.HYBRID)
 sys.path.insert(0, HB)
-sys.path.insert(0, os.path.expanduser("~/csst-dla-finder/src"))
+sys.path.insert(0, str(_env.SRC))
 
 from data import HybridTestDataset                          # noqa: E402
 from decode import predict_member, softmax                  # noqa: E402
@@ -27,11 +29,11 @@ from predict_hybrid import write_submission                 # noqa: E402
 import score_test                                           # noqa: E402
 from csst_dla.scoring import score_catalog                  # noqa: E402
 
-PY = "/home/dingjch/anaconda3/envs/ML_env/bin/python"
-TEST_FITS = "/data/aoqige/test.fits"
-TRUTH = "/data/aoqige/test_truth.fits"
+PY = _env.PYTHON
+TEST_FITS = _env.TEST_FITS
+TRUTH = _env.TEST_TRUTH
 MERGE = os.path.join(HB, "merge_predictions.py")
-RUNS = os.path.expanduser("~/csst_dla_runs")
+RUNS = str(_env.RUNS)
 
 SOTA_CSV = os.path.join(RUNS, "20260904/feature_no_clean_flux_context_v1/predictions.csv")
 

@@ -22,21 +22,23 @@ row%3==2 -- the same three disjoint spectrum sets the verifier used.
 Then it re-runs the shipped selection walk (<=2 per spectrum, 1500 km/s dedup)
 with and without the gate and reports matched / compl / purity at matched budget.
 
-Run: /home/dingjch/anaconda3/envs/ML_env/bin/python -u line_gate.py
+Run: python3 -u line_gate.py
 """
 from __future__ import annotations
 
 import json
 import os
 import sys
+
+import _env  # noqa: E402
 import time
 
 import numpy as np
 import torch
 from torch import nn
 
-HB = os.path.expanduser("~/csst-dla-finder/hybrid_ensemble")
-for p in (HB, os.path.expanduser("~/csst-dla-finder/src")):
+HB = str(_env.HYBRID)
+for p in (HB, str(_env.SRC)):
     if p not in sys.path:
         sys.path.insert(0, p)
 

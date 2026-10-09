@@ -25,8 +25,8 @@ normalisation and the wing expansion).  b only sets the softening scale where
 the saturated core is clipped, so it is fixed at 25 km/s.
 
 Run (server):
-  /home/dingjch/anaconda3/envs/ML_env/bin/python -u voigt_zrefine.py --stage A
-  /home/dingjch/anaconda3/envs/ML_env/bin/python -u voigt_zrefine.py --stage B
+  python3 -u voigt_zrefine.py --stage A
+  python3 -u voigt_zrefine.py --stage B
 """
 from __future__ import annotations
 
@@ -34,6 +34,8 @@ import argparse
 import json
 import os
 import sys
+
+import _env  # noqa: E402
 
 import numpy as np
 from astropy.io import fits
@@ -55,8 +57,8 @@ C_TAU = (R_E * C_CMS) * F_LYA * GAMMA_LYA * (LAM_LYA * A_CM) ** 4 / (
 B_DOPPLER = 25.0               # km/s, only sets the saturated-core softening
 EPS_REST = (B_DOPPLER / C_KMS) * LAM_LYA          # ~0.101 A
 
-TEST_FITS = "/data/aoqige/test.fits"
-TRUTH_FITS = "/data/aoqige/test_truth.fits"
+TEST_FITS = _env.TEST_FITS
+TRUTH_FITS = _env.TEST_TRUTH
 DEFAULT_PRED = os.path.expanduser(
     "~/csst_dla_runs/20260912/ensemble_4way_v3/predictions.csv"
 )
