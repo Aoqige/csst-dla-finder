@@ -22,7 +22,9 @@ used for the current SOTA is *not* `hybrid_ensemble/train_feature_fusion.py`, it
 ## Recipes
 
 The authoritative machine-readable recipe is
-`results/reports/final_method_manifest.json` (with its `.sha256`). In brief:
+`results/reports/final_method_manifest.json` (with its `.sha256`). The recipe of the
+**current best CNN dual-tower run (0.6876)** is recorded per candidate in
+`results/cnn-dual-tower/r48sh_seed51_ema_ep8/r38_matched_wls_seed51.json`. In brief:
 
 - **Towers** — GrowNet conservative + FlatNet conservative, both frozen, eval mode.
 - **Fusion head** — `merge_mode=residual_dilated`, `fusion_width=128`, `fusion_depth=3`.

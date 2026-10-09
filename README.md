@@ -8,25 +8,41 @@ The historical exploration branches are archived and closed; the ledger is in
 
 ## The two SOTA systems
 
-| System | Module | Structure | Data line | Split | Final |
-|---|---|---|---|---|---|
-| **CNN dual-tower** | `hybrid_ensemble/feature_fusion.py` (`DualTowerFusionNet`) | GrowNet dilated CNN (1.99 M) + FlatNet WZX CNN (1.02 M), both frozen, joined by a trained residual fusion head (w128 × d3) | GU_qlf | VAL | **0.6584** |
-| **Transformer single tower** | `hybrid_ensemble/models/transformer_conv_stem_5head.py` | 3-layer Conv1d stem → 4 × TransformerEncoderLayer (d_model 192, 8 heads, dim_ff 768), five heads, 2.50 M | GU_qlf | VAL | **0.6503** |
+| System | Module | Structure | Split | Final |
+|---|---|---|---|---|
+| **CNN dual-tower** | `hybrid_ensemble/feature_fusion.py` (`DualTowerFusionNet`) | GrowNet dilated CNN (1.99 M) + FlatNet WZX CNN (1.02 M), both frozen, joined by a trained residual fusion head (w128 × d3) | VAL | **0.687569327685616** |
+| **Transformer single tower** | `hybrid_ensemble/models/transformer_conv_stem_5head.py` | 3-layer Conv1d stem → 4 × TransformerEncoderLayer (d_model 192, 8 heads, dim_ff 768), five heads, 2.50 M | VAL | **0.6503** |
 
 Both share the same five-head output contract `{heatmap, lognhi, count_logits, offset}`
 and therefore the same `decode.py`, `evaluate_hybrid.py` and scoring path.
 
-### Two further numbers — do not conflate them with the table above
+### About the CNN dual-tower number
 
-- **Current best single model (VAL)** = `results/cnn-dual-tower/r48sh_seed51_ema_ep8.pt`,
-  **Final 0.687569327685616** (seed 51, EMA epoch 8, matched-WLS readout;
-  Detection 0.6712027088 / Parameter 0.7121192560).
-  This is a *repeated-development selection over 64 candidates on the unified VAL
-  split*, i.e. a selected maximum, **not** an unbiased generalisation estimate.
-- **The only method with a TEST number** = the R38/R39 frozen-head matched-WLS
-  readout, **TEST Final 0.6696572892 ± 0.0019574108** (Detection 0.6334 /
-  Parameter 0.7241; seeds 42–45). Frozen method manifest and full per-seed results
-  live in `results/reports/`.
+`0.687569327685616` is the **full current-line recipe**, not a bare checkpoint:
+Stage-A EMA training (R48-SH, seed 51, EMA epoch 8) followed by the Stage-B
+matched-WLS head readout. The ready-to-infer artifacts live in
+`results/cnn-dual-tower/r48sh_seed51_ema_ep8/`:
+
+- `r38_deployable_seed51.pt` — the deployable checkpoint (E + refit head).
+- `r38_matched_wls_head_seed51.pt` — the 129-parameter WLS head.
+- `r38_matched_wls_seed51.json` — the full recipe and audit record.
+- `ema_ep8.pt` — the raw Stage-A checkpoint (md5 `889e42c2…`), the input to Stage B.
+
+Two caveats that must travel with this number:
+
+1. It is a **repeated-development selection over 64 candidates on the unified VAL
+   split** (8 seeds × 8 EMA endpoints, max selected), so it is a selected maximum,
+   **not** an unbiased generalisation estimate.
+2. The gain over the previous best comes **97.4 % from the Parameter term and
+   entirely from `score_nhi`**; `n_pred` / `n_match` / precision / recall are
+   bit-identical to the pre-readout model.
+
+### The only TEST number
+
+The single method that has been opened on TEST is the frozen R38/R39 matched-WLS
+readout: **TEST Final 0.6696572892 ± 0.0019574108** (Detection 0.6334 /
+Parameter 0.7241, seeds 42–45). Its specification and per-seed results are in
+`results/reports/`.
 
 ### Data lines
 
@@ -34,8 +50,7 @@ The current standard is the **`GU_qlf` line** (`train_500k_GU_qlf.fits`, 194 px,
 2554–4098 Å). Scores from different data lines are **not comparable** — the truth
 catalogue density differs, which changes the `n_truth`-weighted denominator of the
 Detection term. The older `20260903` line (681 px) survives only inside the archived
-`network/*` branches; its numbers are recorded in `docs/BRANCH_LEDGER.md` for
-historical reference.
+`network/*` branches; its numbers are recorded in `docs/BRANCH_LEDGER.md`.
 
 ## Layout
 
@@ -58,8 +73,8 @@ docs/BRANCH_LEDGER.md     archived-branch ledger
 
 | File | System | Params | Final | Split |
 |---|---|---|---|---|
-| `results/cnn-dual-tower/fusion_sig15_l40/best_model.pt` | CNN dual-tower | 3,555,527 | 0.6584 | VAL |
-| `results/cnn-dual-tower/r48sh_seed51_ema_ep8.pt` | CNN dual-tower (EMA ep8) | 3,555,527 | 0.6875693277 | VAL |
+| `results/cnn-dual-tower/r48sh_seed51_ema_ep8/r38_deployable_seed51.pt` | CNN dual-tower (deployable) | 3,555,527 | 0.6875693277 | VAL |
+| `results/cnn-dual-tower/reference_plain_fusion/best_model.pt` | CNN dual-tower, plain training (no EMA + WLS) | 3,555,527 | 0.6584 | VAL |
 | `results/transformer/tf_sig15_l40_s43/best_model.pt` | Transformer single tower | 2,502,919 | 0.6503 | VAL |
 
 Each checkpoint holds `{model_state, config, threshold, score, training_config}`.
@@ -83,7 +98,7 @@ PYTHONPATH=src python3 hybrid_ensemble/train_transformer.py \
 PYTHONPATH=src python3 hybrid_ensemble/train_feature_fusion.py --help
 ```
 
-The full current-line recipe (EMA training + matched-WLS head readout) is the one in
+The current-line recipe (EMA training + matched-WLS head readout) is the one in
 `sota/drivers/`; the frozen method is specified in
 `results/reports/final_method_manifest.json`.
 
@@ -100,4 +115,4 @@ and evaluation conventions stay documented on `main`.
 Do not commit challenge data, model checkpoints, generated predictions, or run
 outputs. The `.gitignore` excludes common large artifacts such as FITS files,
 PyTorch checkpoints, and output folders. This branch carries a narrow, explicit
-whitelist for the three reference checkpoints under `results/` only.
+whitelist for the reference checkpoints under `results/` only.
