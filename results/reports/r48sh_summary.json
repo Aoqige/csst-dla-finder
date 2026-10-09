@@ -1,0 +1,92 @@
+{
+  "round": "R48-SH",
+  "n_candidates_expected": 64,
+  "n_candidates_scored": 64,
+  "n_missing": 0,
+  "missing": [],
+  "n_completed_all_gates_pass": 64,
+  "n_candidates_all_gates_pass": 64,
+  "all_candidates_complete_and_passed": true,
+  "selection_rule": "max VAL Final over all candidates; tie -> earlier EMA epoch, then smaller seed",
+  "selection_status": "repeated-development selection on unified VAL (not an unbiased generalization claim)",
+  "best": {
+    "seed": 51,
+    "ema_epoch": 8,
+    "final": 0.687569327685616,
+    "detection": 0.6712027088378448,
+    "parameter": 0.7121192559572727,
+    "e_ckpt": "/home/heruihua/csst_dla_runs/20261008_r48sh/seed51/ema_ep8.pt",
+    "e_ckpt_md5": "889e42c20ee1be032fad4a084ae3f195",
+    "deployable_sha256": "ce2147f6c7428c8b3104a7885395238fd52c3b775fd2f29a1a9fa20f1be4c03e",
+    "head_sha256": "5e2fa5d086535f9086e88d43a335cf09c6976486c6e48a42fbdcad56f7b09ba5",
+    "cand_dir": "/home/heruihua/csst_dla_runs/20261008_r48sh/cand/seed51_ep8"
+  },
+  "final_max": 0.687569327685616,
+  "final_min": 0.6630952592555015,
+  "final_median": 0.678991362012193,
+  "beats_history_0.687357": [
+    {
+      "seed": 51,
+      "ema_epoch": 8,
+      "final": 0.687569327685616
+    }
+  ],
+  "n_beats_0.687357": 1,
+  "n_above_0.690000": 0,
+  "n_above_0.695000": 0,
+  "n_above_0.700000": 0,
+  "gap_to_0.700000": 0.012430672314383995,
+  "gap_best_to_history": 0.00021232768561596504,
+  "max_final_per_ema_epoch": {
+    "6": 0.6870428480401215,
+    "8": 0.687569327685616,
+    "10": 0.686900647846922,
+    "12": 0.6843506562417734,
+    "14": 0.6805342188842552,
+    "16": 0.6781790541626853,
+    "18": 0.6758567000681748,
+    "20": 0.6735331175123487
+  },
+  "n_candidates_per_ema_epoch": {
+    "6": 8,
+    "8": 8,
+    "10": 8,
+    "12": 8,
+    "14": 8,
+    "16": 8,
+    "18": 8,
+    "20": 8
+  },
+  "historical_reference_readonly": [
+    {
+      "seed": "42",
+      "source": "R38 matched-WLS",
+      "val_final": 0.6825514434232297
+    },
+    {
+      "seed": "43",
+      "source": "R38 matched-WLS",
+      "val_final": 0.6831270401484937
+    },
+    {
+      "seed": "44",
+      "source": "R38 matched-WLS",
+      "val_final": 0.6829074029348012
+    },
+    {
+      "seed": "45",
+      "source": "R39 matched-WLS",
+      "val_final": 0.6870866739276652
+    },
+    {
+      "seed": "21",
+      "source": "count_loss_weight=0.10 best",
+      "val_final": 0.687357
+    }
+  ],
+  "notes": [
+    "TEST was not scored, not tuned and not used for selection in this round.",
+    "All numbers come from the official float32 scoring path of the frozen scorer.",
+    "The VAL maximum is a repeated-development selection over 64 candidates."
+  ]
+}

@@ -26,3 +26,6 @@ splits/*.npz
 # Notebooks
 .ipynb_checkpoints/
 
+
+# SOTA reference artifacts (explicit whitelist)
+!results/**

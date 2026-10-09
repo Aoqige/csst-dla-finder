@@ -1,0 +1,294 @@
+{
+  "round": "FINAL",
+  "created_utc": "2026-10-05T06:21:53.153216+00:00",
+  "created_local": "2026-10-05T14:21:53.153241",
+  "created_epoch": 1791181313.1532555,
+  "frozen_before_test": true,
+  "method": {
+    "stage_A": {
+      "backbones": "GrowNet conservative + FlatNet conservative, both frozen + eval",
+      "merge_mode": "residual_dilated",
+      "fusion_width": 128,
+      "fusion_depth": 3,
+      "loss_weights": {
+        "region": 0.2,
+        "lognhi": 0.05,
+        "offset": 0.1,
+        "count": 0.25
+      },
+      "count_loss": "ce (unweighted)",
+      "count_gradient_path": "shared (no stop-gradient)",
+      "optimizer": {
+        "class": "AdamW",
+        "lr": 0.0005,
+        "weight_decay": 0.0001
+      },
+      "batch_size": 512,
+      "epochs": 10,
+      "scheduler": null,
+      "ema": {
+        "beta": 0.999,
+        "update": "after every optimizer.step()",
+        "warmup": null,
+        "bias_correction": null,
+        "reset": null,
+        "n_ema_tensors": 40,
+        "n_ema_params": 553479
+      },
+      "checkpoint": "fixed EMA epoch10"
+    },
+    "stage_B": {
+      "frozen": "E (all parameters, buffers, eval state)",
+      "sample": "unified TRAIN split; E-decoder-selected predictions that the official greedy_match judged matched",
+      "objective": "J_match(theta) = mean_j (x_j theta - r_j)^2, equal weight per matched object",
+      "solver": "scipy.linalg.lstsq(A, d, cond=max(A.shape)*eps64, lapack_driver='gelsd') CPU float64",
+      "parametrisation": "theta = theta_E + delta (minimum-norm delta)",
+      "fit_parameters": 129,
+      "ridge": null,
+      "other_weighting": null,
+      "calibration": null
+    }
+  },
+  "towers": {
+    "dilated": {
+      "path": "/home/heruihua/csst_dla_runs/20261003_r12/tower_grow_ctrl_u/model.pt",
+      "md5": "9aeee291c016b0ea21743ec4bd39c199"
+    },
+    "wzx": {
+      "path": "/home/heruihua/csst_dla_runs/20261003_r14/tower_flat_cons_u_r14/best_model.pt",
+      "md5": "f56dc6505cdf1d516622c866a24fd93c"
+    }
+  },
+  "targets_split": {
+    "npz": "/home/heruihua/csst_dla_runs/20261003_r12/cnn_targets_unified_seed42_sig15.npz",
+    "npz_md5": "bc2ecef3c251c04599a3a0589d2c9554",
+    "train_idx_md5": "b237712677c7a17e24cb840b051a5720",
+    "val_idx_md5": "69424cc2437526c5447a09fe13f9efc0",
+    "n_train": 400000,
+    "n_val": 100000,
+    "intersection": 0
+  },
+  "train_fits": {
+    "path": "/data/heruihua/newer/train_500k_GU_qlf.fits",
+    "md5": "95c35c12f4d86f9c9146220f28494254"
+  },
+  "decoder": {
+    "threshold": 0.45,
+    "min_distance": 10,
+    "min_z_dla": 1.1,
+    "count_bias": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "count_min_prob": 0.0,
+    "lognhi_min": 20.3,
+    "lognhi_max": 22.5
+  },
+  "seeds": {
+    "42": {
+      "seed": "42",
+      "source_round": "R38",
+      "e_ckpt": "/home/heruihua/csst_dla_runs/20261004_r32/lr_step10_seed42/ema_ep10.pt",
+      "e_ckpt_md5": "dcdecc872d9a328b6040d32e165eb6cf",
+      "e_epoch": 10,
+      "e_weight_kind": "ema",
+      "deployment_ckpt": "/home/heruihua/csst_dla_runs/20261005_r38/r38_deployable_seed42.pt",
+      "deployment_ckpt_md5": "ef96c99fe601d0295c0fd5f59429768c",
+      "unified_val_final": 0.6825514434,
+      "matched_wls": {
+        "objective": "mean_j (x_j theta - r_j)^2 (equal weight per matched object)",
+        "solver": "scipy.linalg.lstsq(A, d, cond=max(A.shape)*eps64, lapack_driver='gelsd')",
+        "cond": 1.4215295607300504e-12,
+        "rank": 129,
+        "n_singular_values": 129,
+        "s_max": 298.7581144342366,
+        "s_min": 0.26640830631025814,
+        "effective_cond": 1121.429427528074,
+        "truncation_used": false,
+        "train_n_match": 6402,
+        "design_shape": [
+          6402,
+          129
+        ],
+        "json": "/home/heruihua/csst_dla_runs/20261005_r38/r38_matched_wls_seed42.json",
+        "json_md5": "4c1f3fce5d6abb5e592f91dde01a3fd1"
+      }
+    },
+    "43": {
+      "seed": "43",
+      "source_round": "R38",
+      "e_ckpt": "/home/heruihua/csst_dla_runs/20261004_r32/lr_step10_seed43/ema_ep10.pt",
+      "e_ckpt_md5": "6a91c3e1b5f563b39138104735cc2893",
+      "e_epoch": 10,
+      "e_weight_kind": "ema",
+      "deployment_ckpt": "/home/heruihua/csst_dla_runs/20261005_r38/r38_deployable_seed43.pt",
+      "deployment_ckpt_md5": "306451ca7793fbee4287554e0eff7f31",
+      "unified_val_final": 0.6831270401,
+      "matched_wls": {
+        "objective": "mean_j (x_j theta - r_j)^2 (equal weight per matched object)",
+        "solver": "scipy.linalg.lstsq(A, d, cond=max(A.shape)*eps64, lapack_driver='gelsd')",
+        "cond": 1.4099832412739488e-12,
+        "rank": 129,
+        "n_singular_values": 129,
+        "s_max": 170.2585989002408,
+        "s_min": 0.2658480154130392,
+        "effective_cond": 640.4358469094294,
+        "truncation_used": false,
+        "train_n_match": 6350,
+        "design_shape": [
+          6350,
+          129
+        ],
+        "json": "/home/heruihua/csst_dla_runs/20261005_r38/r38_matched_wls_seed43.json",
+        "json_md5": "100b391627f55e96c9d6d655f1acc6d2"
+      }
+    },
+    "44": {
+      "seed": "44",
+      "source_round": "R38",
+      "e_ckpt": "/home/heruihua/csst_dla_runs/20261004_r36/replay_seed44/ema_ep10.pt",
+      "e_ckpt_md5": "10ea2931e672e7131e370cdd5101b81d",
+      "e_epoch": 10,
+      "e_weight_kind": "ema",
+      "deployment_ckpt": "/home/heruihua/csst_dla_runs/20261005_r38/r38_deployable_seed44.pt",
+      "deployment_ckpt_md5": "c7f40793f05493e54952e209fd38a2e6",
+      "unified_val_final": 0.6829074029,
+      "matched_wls": {
+        "objective": "mean_j (x_j theta - r_j)^2 (equal weight per matched object)",
+        "solver": "scipy.linalg.lstsq(A, d, cond=max(A.shape)*eps64, lapack_driver='gelsd')",
+        "cond": 1.4079848398296235e-12,
+        "rank": 129,
+        "n_singular_values": 129,
+        "s_max": 175.31714197430887,
+        "s_min": 0.3544807838530442,
+        "effective_cond": 494.57445920958423,
+        "truncation_used": false,
+        "train_n_match": 6341,
+        "design_shape": [
+          6341,
+          129
+        ],
+        "json": "/home/heruihua/csst_dla_runs/20261005_r38/r38_matched_wls_seed44.json",
+        "json_md5": "55b90edc955ad069816d6564d357bcc5"
+      }
+    },
+    "45": {
+      "seed": "45",
+      "source_round": "R39",
+      "e_ckpt": "/home/heruihua/csst_dla_runs/20261005_r39/seed45/ema_ep10.pt",
+      "e_ckpt_md5": "1ccd437cdf9013cb0f1940c499ea3f41",
+      "e_epoch": 10,
+      "e_weight_kind": "ema",
+      "deployment_ckpt": "/home/heruihua/csst_dla_runs/20261005_r39/r39_deployable_seed45.pt",
+      "deployment_ckpt_md5": "239c880790a19c09ac624a71b2867415",
+      "unified_val_final": 0.6870866739,
+      "matched_wls": {
+        "objective": "mean_j (x_j theta - r_j)^2 (equal weight per matched object)",
+        "solver": "scipy.linalg.lstsq(A, d, cond=max(A.shape)*eps64, lapack_driver='gelsd')",
+        "cond": 1.4070966614099234e-12,
+        "rank": 129,
+        "n_singular_values": 129,
+        "s_max": 429.02485236462996,
+        "s_min": 0.25270978446494513,
+        "effective_cond": 1697.6978286495375,
+        "truncation_used": false,
+        "train_n_match": 6337,
+        "design_shape": [
+          6337,
+          129
+        ],
+        "json": "/home/heruihua/csst_dla_runs/20261005_r39/r39_matched_wls_seed45.json",
+        "json_md5": "7964e8a38ba73320ee82cd13b5bf5f8b"
+      }
+    }
+  },
+  "predeclared_single_model_companion": "45",
+  "test_data": {
+    "fits": "/data/heruihua/newer/test_100k_GU.fits",
+    "md5": "125d88ec0cbb2b8e46aee8ded93d1c8c",
+    "truth_fits": "/data/heruihua/newer/test_truth_100k_GU.fits",
+    "md5_truth": "5669c4c33fd23f1f34c11a70b5485154"
+  },
+  "source_hashes": {
+    "training_driver": {
+      "path": "/home/heruihua/r32/run_fusion_ema_lrstep.py",
+      "md5": "9f4a3b04ae5dd03a325eccd2eddbe576",
+      "present": true
+    },
+    "ema_implementation": {
+      "path": "/home/heruihua/r30/ema.py",
+      "md5": "917e5b68c9e16eea10f59ab8033f966e",
+      "present": true
+    },
+    "matched_wls_script_seed42_44": {
+      "path": "/home/heruihua/r38/r38_matched_wls.py",
+      "md5": "31e8ea7b96cd6c747a2630cc9e86bd07",
+      "present": true
+    },
+    "matched_wls_script_seed45": {
+      "path": "/home/heruihua/r39/r39_matched_wls.py",
+      "md5": "899f1c019af80bee2299498ba21c87c9",
+      "present": true
+    },
+    "decoder": {
+      "path": "/home/heruihua/csst-dla-finder/hybrid_ensemble/decode.py",
+      "md5": "7f20748bf72419c542256dc15dc494f4",
+      "present": true
+    },
+    "scorer": {
+      "path": "/home/heruihua/csst-dla-finder/src/csst_dla/scoring.py",
+      "md5": "d87396551fa2e3ad53d60fd4c83821d2",
+      "present": true
+    },
+    "feature_fusion": {
+      "path": "/home/heruihua/csst-dla-finder/hybrid_ensemble/feature_fusion.py",
+      "md5": "8360364bac16239f7e4908e2f1db62f8",
+      "present": true
+    },
+    "data_module": {
+      "path": "/home/heruihua/csst-dla-finder/hybrid_ensemble/data.py",
+      "md5": "54a11fd874d8286de51216531107d9e7",
+      "present": true
+    },
+    "evaluate_hybrid": {
+      "path": "/home/heruihua/csst-dla-finder/hybrid_ensemble/evaluate_hybrid.py",
+      "md5": "77da7e17ac37ed3216b2a6ed8e2e9316",
+      "present": true
+    },
+    "targets_maker": {
+      "path": "/home/heruihua/csst-dla-finder/scripts/make_cnn_targets.py",
+      "md5": "ec74a26767c12c5dc2598849961d7bfd",
+      "present": true
+    },
+    "unified_split_maker": {
+      "path": "/home/heruihua/r12/make_unified_split.py",
+      "md5": "8d471f49992ca6be22ad9c570f2d461a",
+      "present": true
+    },
+    "final_eval_script": {
+      "path": "/home/heruihua/final/final_eval.py",
+      "md5": "e69c18d0e40647b63a9ed662750fcf91",
+      "present": true
+    }
+  },
+  "forbidden_after_test": [
+    "retraining",
+    "changing epochs",
+    "changing seed",
+    "modifying head samples",
+    "ridge",
+    "bias correction",
+    "threshold search",
+    "decoder rescue",
+    "new branch",
+    "new EMA beta",
+    "TEST-specific threshold/count-bias/NMS tuning",
+    "head refit",
+    "OLS on TEST",
+    "calibration",
+    "ensemble weighting",
+    "checkpoint selection by TEST",
+    "reusing TEST as untouched holdout"
+  ]
+}
