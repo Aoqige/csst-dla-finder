@@ -70,7 +70,12 @@ sota/drivers/             the drivers that produced the headline runs
 results/                  reference checkpoints, recipes and score reports
 vendor/csst_dla_wzx_pkg/  WZX tower package, bundled so the fusion model rebuilds
 docs/BRANCH_LEDGER.md     archived-branch ledger
+RUNBOOK.md                every training / evaluation / test command
 ```
+
+**Looking for commands?** [`RUNBOOK.md`](RUNBOOK.md) has the full sequence —
+environment, data preparation, tower training, Stage A/B, evaluation and the
+one-shot TEST pass.
 
 ## Verify this branch
 

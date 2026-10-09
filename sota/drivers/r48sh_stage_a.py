@@ -43,10 +43,9 @@ from pathlib import Path
 os.environ.setdefault("FUS_SUBSET", "both")
 EMA_BASE = os.environ.get("EMA_BASE", "subset")
 
-for _p in ("/home/heruihua/csst-dla-finder/src",
-           "/home/heruihua/csst-dla-finder/hybrid_ensemble",
-           "/home/heruihua", "/home/heruihua/r11", "/home/heruihua/r27",
-           "/home/heruihua/r30", "/home/heruihua/r32"):
+_ROOT = Path(__file__).resolve().parents[2]
+for _p in (str(_ROOT / "src"), str(_ROOT / "hybrid_ensemble"), str(_ROOT / "vendor"),
+           str(Path(__file__).resolve().parent)):
     if _p not in sys.path:
         sys.path.insert(0, _p)
 

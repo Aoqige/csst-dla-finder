@@ -80,7 +80,7 @@ def main() -> int:
     # ---- 2. 统一切分：按**打分口径 count** 分层 ----
     # 打分口径 count = 该谱中 LOGNHI>=20.3 的 DLA 个数（上限 2）
     from csst_dla.fits_utils import read_labels
-    labels = read_labels("/data/heruihua/newer/train_500k_GU_qlf.fits")
+    labels = read_labels(os.environ.get("CSST_TRAIN_FITS", str(Path.home() / "data" / "train_500k_GU_qlf.fits")))
     scored = np.zeros(n_total, dtype=np.int64)
     nd = np.asarray(labels["N_DLA"]).astype(np.int64)
     for slot in (1, 2):

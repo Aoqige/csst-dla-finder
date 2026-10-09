@@ -7,8 +7,8 @@ import json
 import statistics as st
 from pathlib import Path
 
-R38 = Path("/home/heruihua/csst_dla_runs/20261005_r38")
-R39 = Path("/home/heruihua/csst_dla_runs/20261005_r39")
+R38 = Path(os.environ.get("CSST_R38_DIR", str(Path.home() / "csst_dla_runs" / "20261005_r38")))
+R39 = Path(os.environ.get("CSST_R39_DIR", str(Path.home() / "csst_dla_runs" / "20261005_r39")))
 SEEDS = ("42", "43", "44", "45")
 
 

@@ -36,8 +36,8 @@ import torch  # noqa: E402
 from astropy.io import fits  # noqa: E402
 from torch.utils.data import DataLoader  # noqa: E402
 
-REPO = Path("/home/heruihua/csst-dla-finder")
-for _p in (str(REPO / "src"), str(REPO / "hybrid_ensemble"), "/home/heruihua"):
+REPO = Path(__file__).resolve().parents[2]
+for _p in (str(REPO / "src"), str(REPO / "hybrid_ensemble"), str(REPO / "vendor")):
     if _p not in sys.path:
         sys.path.insert(0, _p)
 
@@ -48,13 +48,13 @@ from feature_fusion import (DualFusionTrainDataset, DualFusionTestDataset,  # no
                             DualTowerFusionNet)
 from csst_dla_wzx_pkg.inference import load_model_from_checkpoint  # noqa: E402
 
-B = Path("/home/heruihua/csst_dla_runs")
+B = Path(os.environ.get("CSST_DLA_RUNS", str(Path.home() / "csst_dla_runs")))
 R12 = B / "20261003_r12"
 R14 = B / "20261003_r14"
 OUT = B / "20261005_final"
-TRAIN_FITS = "/data/heruihua/newer/train_500k_GU_qlf.fits"
-TEST_FITS = "/data/heruihua/newer/test_100k_GU.fits"
-TEST_TRUTH = "/data/heruihua/newer/test_truth_100k_GU.fits"
+TRAIN_FITS = os.environ.get("CSST_TRAIN_FITS", str(Path.home() / "data" / "train_500k_GU_qlf.fits"))
+TEST_FITS = os.environ.get("CSST_TEST_FITS", str(Path.home() / "data" / "test_100k_GU.fits"))
+TEST_TRUTH = os.environ.get("CSST_TEST_TRUTH", str(Path.home() / "data" / "test_truth_100k_GU.fits"))
 NPZ = str(R12 / "cnn_targets_unified_seed42_sig15.npz")
 DCK = str(R12 / "tower_grow_ctrl_u/model.pt")
 WCK = str(R14 / "tower_flat_cons_u_r14/best_model.pt")

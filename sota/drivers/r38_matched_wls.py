@@ -33,8 +33,8 @@ import scipy.linalg  # noqa: E402
 import torch  # noqa: E402
 from torch.utils.data import DataLoader  # noqa: E402
 
-ROOT = Path("/home/heruihua/csst-dla-finder")
-for _p in (str(ROOT / "src"), str(ROOT / "hybrid_ensemble"), "/home/heruihua"):
+ROOT = Path(__file__).resolve().parents[2]
+for _p in (str(ROOT / "src"), str(ROOT / "hybrid_ensemble"), str(ROOT / "vendor")):
     if _p not in sys.path:
         sys.path.insert(0, _p)
 

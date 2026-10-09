@@ -17,7 +17,10 @@ import sys
 
 import numpy as np
 
-sys.path.insert(0, "/home/heruihua")
+_ROOT = Path(__file__).resolve().parents[2]
+for _p in (str(_ROOT / "src"), str(_ROOT / "hybrid_ensemble"), str(_ROOT / "vendor"),
+           str(Path(__file__).resolve().parent)):
+    sys.path.insert(0, _p)
 
 from csst_dla_wzx_pkg import train as T  # noqa: E402
 
