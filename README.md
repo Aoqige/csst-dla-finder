@@ -6,6 +6,8 @@ code, the reference checkpoints, and the drivers that produced the headline numb
 The historical exploration branches are archived and closed; the ledger is in
 [`docs/BRANCH_LEDGER.md`](docs/BRANCH_LEDGER.md).
 
+**Taking over this project?** Start with [HANDOFF.md](HANDOFF.md) for the evidence levels, external-asset gate, safe TEST boundary, and framework routing; use [RUNBOOK.md](RUNBOOK.md) as the only command source.
+
 ## The two SOTA systems
 
 | System | Module | Structure | Split | Final |

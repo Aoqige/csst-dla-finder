@@ -4,6 +4,8 @@ Every command needed to reproduce the two SOTA systems on this branch. Commands 
 written against a checkout of this repository; nothing below assumes a particular
 machine.
 
+> **New maintainer or AI?** Read [HANDOFF.md](HANDOFF.md) first for the data gate, proof levels, framework routing, and TEST boundary.
+>
 > **Read this first.** The commands run as written once §0 is exported. The only
 > things you may need to change are listed in [§0.2 What you may need to change](#02-what-you-may-need-to-change).
 > Every flag below was checked against the target script's own argument parser.
