@@ -123,6 +123,36 @@ Stage A's `--lr` applies to the **fusion head only**: both towers stay frozen
 (`--train-backbones` is off by default), matching `train_backbones=False` in the
 recorded config. `--backbone-lr` is only consulted when `--train-backbones` is set.
 
+#### Every argument that affects training is written out
+
+A handful of flags equal the script's current default. They are written explicitly
+anyway, so a command never depends on a default staying put:
+
+* the vendored FlatNet package's loss weights and target widths — `--lambda_count`,
+  `--lambda_heatmap`, `--lambda_region`, `--lambda_lognhi`, `--lambda_offset`,
+  `--sigma_bins`, `--region_half_width_bins`, `--region_lognhi_scale`,
+  `--heatmap_positive_weight`, `--region_positive_weight` (§3.1);
+* Stage A's `--high-lognhi-threshold / -center-weight / -log-weight`, matching §2.1
+  and §3.1 where the same three are already explicit (§3.2).
+
+Boolean switches that stayed **off** are deliberately absent — omitting a
+`store_true` flag is how "off" is expressed: `--train-backbones`,
+`--no_class_weights`, `--no_context_channels`, `--allow_legacy_input_modes`,
+`--offset_target_clip`.
+
+This was checked mechanically, not by eye. `$REPO/sota/audit_runbook.py` reads every
+recorded setting back out of `training_args.json` / `config.json` / the checkpoint's
+embedded `training_config`, and sorts each one into: written-and-equal,
+written-but-different, **equal-to-default**, or **missing** (recorded, not written,
+and the script default differs — the only category that silently changes the
+experiment). Current counts of the two bad categories: **0 and 0**.
+
+Run it yourself against a run root that still holds the reference runs:
+
+```bash
+RUNS=$HOME/csst_dla_runs python3 $REPO/sota/audit_runbook.py $REPO
+```
+
 ### 0.3 ⚠ Two different VAL splits are in play
 
 This matters more than anything else on this page. The reported numbers were **not
@@ -289,8 +319,18 @@ cd $REPO && UNIFIED_SPLITS=$R12/splits_unified.npz \
   --train_fits $TRAIN_FITS --output_dir $R14/tower_flat_cons_u_r14 \
   --feature_mode flux --epochs 10 --batch_size 512 --lr 8e-4 --weight_decay 1e-4 \
   --val_size 0.2 --seed 42 --split_seed 42 --num_workers 8 \
-  --base_channels 96 --num_blocks 8 --dropout 0.1 --disable_tqdm
+  --base_channels 96 --num_blocks 8 --dropout 0.1 --disable_tqdm \
+  --sigma_bins 2.0 --region_half_width_bins 8 --region_lognhi_scale 2.0 \
+  --lambda_count 1.0 --lambda_heatmap 1.0 --lambda_region 0.25 \
+  --lambda_lognhi 0.25 --lambda_offset 0.2 \
+  --heatmap_positive_weight 10.0 --region_positive_weight 2.0
 ```
+
+The last three lines are the values the reference run used **and** the current
+defaults of the vendored package. They are written out anyway: this package is
+third-party code, and if its defaults ever change the command would otherwise
+silently train a different loss. `--no_class_weights` / `--no_context_channels`
+are `store_true` and stayed off, so they are deliberately absent.
 
 `UNIFIED_SPLITS` must be set — the driver exits immediately without it.
 
@@ -316,6 +356,7 @@ $PY $REPO/sota/drivers/run_fusion_ema_lrstep.py \
   --batch-size 512 --lr 5e-4 --min-z-dla 1.1 \
   --region-loss-weight 0.20 --lognhi-loss-weight 0.05 --offset-loss-weight 0.1 \
   --count-loss-weight 0.25 --num-workers 8 --device cuda \
+  --high-lognhi-threshold 22.0 --high-lognhi-center-weight 4.0 --high-lognhi-log-weight 4.0 \
   --epochs 10 --seed 45 --out-dir $RUNS/20261005_r39/seed45 \
   --lr-drop-epoch 11 --lr-after-drop 5e-5
 ```
@@ -334,6 +375,7 @@ $PY $REPO/sota/drivers/r48sh_stage_a.py \
   --batch-size 512 --lr 5e-4 --min-z-dla 1.1 \
   --region-loss-weight 0.20 --lognhi-loss-weight 0.05 --offset-loss-weight 0.1 \
   --count-loss-weight 0.25 --num-workers 8 --device cuda \
+  --high-lognhi-threshold 22.0 --high-lognhi-center-weight 4.0 --high-lognhi-log-weight 4.0 \
   --epochs 20 --seed 51 --out-dir $R48/seed51 \
   --lr-drop-epoch 21 --lr-after-drop 5e-5
 ```
