@@ -72,6 +72,19 @@ export R48=$RUNS/20261008_r48sh                                   # R48-SH run r
 Everything else — every hyper-parameter, path suffix and seed — is the value the
 reference run used. Nothing needs editing inside the repository.
 
+Those values are not transcribed by hand: each command was diffed against the
+arguments the runs themselves recorded — `training_args.json` for the Transformer
+and the GrowNet tower, `config.json` for the WZX tower, and the `training_config`
+embedded in `ema_ep8.pt` for Stage A. **81 of 81 flags match**, with no omissions.
+
+Three settings are **environment variables, not flags** — easy to miss:
+
+| Setting | Where |
+|---|---|
+| `FUS_SUBSET=both`, `EMA_BASE=sg_off` | prefix of the Stage-A command (§3.2) |
+| `UNIFIED_SPLITS=<splits_unified.npz>` | prefix of the WZX tower command (§3.1) |
+| `CUDA_VISIBLE_DEVICES=<gpu>` | Stage A (§3.2) |
+
 Environment overrides read by the drivers and tooling (all optional):
 
 | Variable | Used by | Default |
