@@ -4,6 +4,8 @@ Every command needed to reproduce the two SOTA systems on this branch. Commands 
 written against a checkout of this repository; nothing below assumes a particular
 machine.
 
+> **New maintainer or AI?** Read [HANDOFF.md](HANDOFF.md) first for the data gate, proof levels, framework routing, and TEST boundary.
+>
 > **Read this first.** The commands run as written once §0 is exported. The only
 > things you may need to change are listed in [§0.2 What you may need to change](#02-what-you-may-need-to-change).
 > Every flag below was checked against the target script's own argument parser.
@@ -93,6 +95,65 @@ Environment overrides read by the drivers and tooling (all optional):
 | `CSST_DLA_RUNS` | `final_eval.py`, `aggregate_*.py` | `~/csst_dla_runs` |
 | `CSST_TRAIN_FITS`, `CSST_TEST_FITS`, `CSST_TEST_TRUTH` | `final_eval.py`, `make_unified_split.py` | `~/data/...` |
 | `CSST_UNIFIED_SRC`, `CSST_UNIFIED_OUTDIR` | `make_unified_split.py` | see §1.3 |
+
+#### Epochs and learning rate are not optional
+
+Every training step has a default for `--epochs` and `--lr`, so a command will run
+without them — but **none of the defaults equals the value the reference run used**:
+
+| Step | `--epochs` default | `--lr` default | **reference run** | LR schedule |
+|---|---|---|---|---|
+| GrowNet tower (§3.1) | 16 | 1e-3 | **10 / 1e-3** | none — constant |
+| FlatNet tower (§3.1) | 30 | 8e-4 | **10 / 8e-4** | `CosineAnnealingLR(T_max=epochs)` |
+| Stage A fusion head (§3.2) | 8 | 8e-4 | **20 / 5e-4** | step drop at `--lr-drop-epoch` |
+
+Two couplings make this worse than a plain wrong number:
+
+* **The FlatNet cosine schedule is parameterised by `epochs`**
+  (`CosineAnnealingLR(optimizer, T_max=args.epochs)`). Changing `--epochs` does not
+  just change how long it trains — it changes the entire learning-rate curve.
+* **Stage A drops the LR at `--lr-drop-epoch`.** The reference invocation is
+  `--epochs 20 --lr-drop-epoch 21`: the drop is deliberately placed one epoch *past*
+  the end so it never fires and the LR stays flat at 5e-4. Raising `--epochs` above
+  21 silently makes the LR collapse to 5e-5 mid-run.
+
+`EMA_SAVE_EPOCHS = (6,8,10,12,14,16,18,20)` is also hard-coded in
+`r48sh_stage_a.py`: with fewer than 20 epochs you cannot produce all eight EMA
+endpoints — and the 0.6876 candidate (EMA epoch 8) is one of them.
+
+Stage A's `--lr` applies to the **fusion head only**: both towers stay frozen
+(`--train-backbones` is off by default), matching `train_backbones=False` in the
+recorded config. `--backbone-lr` is only consulted when `--train-backbones` is set.
+
+#### Every argument that affects training is written out
+
+A handful of flags equal the script's current default. They are written explicitly
+anyway, so a command never depends on a default staying put:
+
+* the vendored FlatNet package's loss weights and target widths — `--lambda_count`,
+  `--lambda_heatmap`, `--lambda_region`, `--lambda_lognhi`, `--lambda_offset`,
+  `--sigma_bins`, `--region_half_width_bins`, `--region_lognhi_scale`,
+  `--heatmap_positive_weight`, `--region_positive_weight` (§3.1);
+* Stage A's `--high-lognhi-threshold / -center-weight / -log-weight`, matching §2.1
+  and §3.1 where the same three are already explicit (§3.2).
+
+Boolean switches that stayed **off** are deliberately absent — omitting a
+`store_true` flag is how "off" is expressed: `--train-backbones`,
+`--no_class_weights`, `--no_context_channels`, `--allow_legacy_input_modes`,
+`--offset_target_clip`.
+
+This was checked mechanically, not by eye. `$REPO/sota/audit_runbook.py` reads every
+recorded setting back out of `training_args.json` / `config.json` / the checkpoint's
+embedded `training_config`, and sorts each one into: written-and-equal,
+written-but-different, **equal-to-default**, or **missing** (recorded, not written,
+and the script default differs — the only category that silently changes the
+experiment). Current counts of the two bad categories: **0 and 0**.
+
+Run it yourself against a run root that still holds the reference runs:
+
+```bash
+RUNS=$HOME/csst_dla_runs python3 $REPO/sota/audit_runbook.py $REPO
+```
 
 ### 0.3 ⚠ Two different VAL splits are in play
 
@@ -260,8 +321,18 @@ cd $REPO && UNIFIED_SPLITS=$R12/splits_unified.npz \
   --train_fits $TRAIN_FITS --output_dir $R14/tower_flat_cons_u_r14 \
   --feature_mode flux --epochs 10 --batch_size 512 --lr 8e-4 --weight_decay 1e-4 \
   --val_size 0.2 --seed 42 --split_seed 42 --num_workers 8 \
-  --base_channels 96 --num_blocks 8 --dropout 0.1 --disable_tqdm
+  --base_channels 96 --num_blocks 8 --dropout 0.1 --disable_tqdm \
+  --sigma_bins 2.0 --region_half_width_bins 8 --region_lognhi_scale 2.0 \
+  --lambda_count 1.0 --lambda_heatmap 1.0 --lambda_region 0.25 \
+  --lambda_lognhi 0.25 --lambda_offset 0.2 \
+  --heatmap_positive_weight 10.0 --region_positive_weight 2.0
 ```
+
+The last three lines are the values the reference run used **and** the current
+defaults of the vendored package. They are written out anyway: this package is
+third-party code, and if its defaults ever change the command would otherwise
+silently train a different loss. `--no_class_weights` / `--no_context_channels`
+are `store_true` and stayed off, so they are deliberately absent.
 
 `UNIFIED_SPLITS` must be set — the driver exits immediately without it.
 
@@ -287,6 +358,7 @@ $PY $REPO/sota/drivers/run_fusion_ema_lrstep.py \
   --batch-size 512 --lr 5e-4 --min-z-dla 1.1 \
   --region-loss-weight 0.20 --lognhi-loss-weight 0.05 --offset-loss-weight 0.1 \
   --count-loss-weight 0.25 --num-workers 8 --device cuda \
+  --high-lognhi-threshold 22.0 --high-lognhi-center-weight 4.0 --high-lognhi-log-weight 4.0 \
   --epochs 10 --seed 45 --out-dir $RUNS/20261005_r39/seed45 \
   --lr-drop-epoch 11 --lr-after-drop 5e-5
 ```
@@ -305,6 +377,7 @@ $PY $REPO/sota/drivers/r48sh_stage_a.py \
   --batch-size 512 --lr 5e-4 --min-z-dla 1.1 \
   --region-loss-weight 0.20 --lognhi-loss-weight 0.05 --offset-loss-weight 0.1 \
   --count-loss-weight 0.25 --num-workers 8 --device cuda \
+  --high-lognhi-threshold 22.0 --high-lognhi-center-weight 4.0 --high-lognhi-log-weight 4.0 \
   --epochs 20 --seed 51 --out-dir $R48/seed51 \
   --lr-drop-epoch 21 --lr-after-drop 5e-5
 ```
@@ -464,6 +537,8 @@ Full recipe: `results/reports/final_method_manifest.json` and
 
 ## 7. Reproducibility
 
+### 7.1 CNN dual-tower — bit-reproducible
+
 Verified on 2026-10-09 by retraining from scratch with this branch, in a clean
 `git archive` of it, on different GPUs than the original run.
 
@@ -488,3 +563,61 @@ metrics, never the file hash.
 **Seed spread.** Across the eight R48-SH seeds the best unified-VAL Final ranges
 0.6809–0.6876 (0.67 pp); the two retrained seeds land 0.46 pp apart. Treat differences
 below ~0.7 pp between single seeds as noise, not signal.
+
+### 7.2 Transformer single tower — NOT bit-reproducible (GPU non-determinism)
+
+Retraining seed 43 with the recipe of §2.1, in a clean `git archive`, does **not**
+reproduce the recorded run:
+
+| | best epoch | VAL Final |
+|---|---|---|
+| recorded | 33 | 0.650330197 |
+| retrained | 29 | **0.658630** |
+
+Δbest **+0.83 pp**. The two trajectories diverge from epoch 2 and reach
+`max|Δ| = 10.56 pp`; `n_pred` differs from epoch 2 onward. `training_args.json`
+agrees on 39/40 fields — the only difference is `out_dir`. The loss curves stay
+close (epoch 1 differs by 2.4e-3, later epochs ~1e-4), so this is not a
+configuration mistake.
+
+**The cause is GPU operator non-determinism, not data loading.** Three 1-epoch runs,
+same GPU, same seed, full training set:
+
+| run | `num_workers` | epoch-1 loss |
+|---|---|---|
+| a | 0 | 0.142193644740955 |
+| b | 0 | 0.146460078262036 |
+| c | 8 | 0.143304908537655 |
+
+(a) and (b) use identical settings and still differ, so the DataLoader is not the
+cause. `train_transformer.py` sets `torch.manual_seed(seed)` but supplies no
+`worker_init_fn`, no `use_deterministic_algorithms` and no `generator=`; the attention
+path uses the non-deterministic flash / memory-efficient SDP kernels.
+
+**Forcing determinism does fix it.** With `CUBLAS_WORKSPACE_CONFIG=:4096:8`,
+`torch.use_deterministic_algorithms(True)`, and flash / memory-efficient SDP disabled
+(math SDP only), two 1-epoch runs become bit-identical:
+
+| run | epoch-1 loss |
+|---|---|
+| a | 0.141228320549423 |
+| b | 0.141228320549423 |
+
+```python
+# sitecustomize.py on PYTHONPATH, or the same lines at the top of a training script
+import os
+os.environ.setdefault("CUBLAS_WORKSPACE_CONFIG", ":4096:8")
+import torch
+torch.backends.cuda.enable_flash_sdp(False)
+torch.backends.cuda.enable_mem_efficient_sdp(False)
+torch.backends.cuda.enable_math_sdp(True)
+torch.backends.cudnn.deterministic = True
+torch.backends.cudnn.benchmark = False
+torch.use_deterministic_algorithms(True, warn_only=True)
+```
+
+**Consequence for reading the numbers.** The recorded 0.6503 is one draw from a
+distribution with a run-to-run spread of order **0.8 pp**. A single-seed comparison
+between the Transformer and the CNN tower (0.6503 vs 0.6584, 0.0081 apart) is inside
+that noise. The CNN dual-tower numbers do not have this problem — §7.1 reproduces
+them to the last digit.
