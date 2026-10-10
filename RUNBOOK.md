@@ -459,3 +459,32 @@ comparable.
 
 Full recipe: `results/reports/final_method_manifest.json` and
 `results/cnn-dual-tower/r48sh_seed51_ema_ep8/r38_matched_wls_seed51.json`.
+
+---
+
+## 7. Reproducibility
+
+Verified on 2026-10-09 by retraining from scratch with this branch, in a clean
+`git archive` of it, on different GPUs than the original run.
+
+**Two seeds were retrained end to end** (Stage A, 20 epochs each) and compared with
+the original runs:
+
+| seed | retrain `E_Final` | recorded | retrain post-WLS Final | recorded |
+|---|---|---|---|---|
+| 51 | 0.6759726478960849 | 0.675972648 | **0.687569327685616** | 0.687569328 |
+| 52 | 0.6711619670364222 | 0.671161967 | **0.6829976568035152** | 0.682997657 |
+
+All four agree to full precision, and the EMA VAL trajectory is identical at every
+one of the 21 epochs (`max|Δ| = 0.0000 pp`, `n_pred` included).
+
+**Do not compare checkpoint md5s.** The retrained `ema_ep8.pt` files have *different*
+md5 from the originals, which looks like non-reproducibility and is not: every one of
+the **246 weight tensors is bit-identical** (`max|d| = 0.000e+00`). The only
+difference in the file is `training_config["out_dir"]` — the output-directory string
+you passed on the command line. Compare `model_state` tensors, or the recorded
+metrics, never the file hash.
+
+**Seed spread.** Across the eight R48-SH seeds the best unified-VAL Final ranges
+0.6809–0.6876 (0.67 pp); the two retrained seeds land 0.46 pp apart. Treat differences
+below ~0.7 pp between single seeds as noise, not signal.
