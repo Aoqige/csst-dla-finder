@@ -464,6 +464,8 @@ Full recipe: `results/reports/final_method_manifest.json` and
 
 ## 7. Reproducibility
 
+### 7.1 CNN dual-tower — bit-reproducible
+
 Verified on 2026-10-09 by retraining from scratch with this branch, in a clean
 `git archive` of it, on different GPUs than the original run.
 
@@ -488,3 +490,61 @@ metrics, never the file hash.
 **Seed spread.** Across the eight R48-SH seeds the best unified-VAL Final ranges
 0.6809–0.6876 (0.67 pp); the two retrained seeds land 0.46 pp apart. Treat differences
 below ~0.7 pp between single seeds as noise, not signal.
+
+### 7.2 Transformer single tower — NOT bit-reproducible (GPU non-determinism)
+
+Retraining seed 43 with the recipe of §2.1, in a clean `git archive`, does **not**
+reproduce the recorded run:
+
+| | best epoch | VAL Final |
+|---|---|---|
+| recorded | 33 | 0.650330197 |
+| retrained | 29 | **0.658630** |
+
+Δbest **+0.83 pp**. The two trajectories diverge from epoch 2 and reach
+`max|Δ| = 10.56 pp`; `n_pred` differs from epoch 2 onward. `training_args.json`
+agrees on 39/40 fields — the only difference is `out_dir`. The loss curves stay
+close (epoch 1 differs by 2.4e-3, later epochs ~1e-4), so this is not a
+configuration mistake.
+
+**The cause is GPU operator non-determinism, not data loading.** Three 1-epoch runs,
+same GPU, same seed, full training set:
+
+| run | `num_workers` | epoch-1 loss |
+|---|---|---|
+| a | 0 | 0.142193644740955 |
+| b | 0 | 0.146460078262036 |
+| c | 8 | 0.143304908537655 |
+
+(a) and (b) use identical settings and still differ, so the DataLoader is not the
+cause. `train_transformer.py` sets `torch.manual_seed(seed)` but supplies no
+`worker_init_fn`, no `use_deterministic_algorithms` and no `generator=`; the attention
+path uses the non-deterministic flash / memory-efficient SDP kernels.
+
+**Forcing determinism does fix it.** With `CUBLAS_WORKSPACE_CONFIG=:4096:8`,
+`torch.use_deterministic_algorithms(True)`, and flash / memory-efficient SDP disabled
+(math SDP only), two 1-epoch runs become bit-identical:
+
+| run | epoch-1 loss |
+|---|---|
+| a | 0.141228320549423 |
+| b | 0.141228320549423 |
+
+```python
+# sitecustomize.py on PYTHONPATH, or the same lines at the top of a training script
+import os
+os.environ.setdefault("CUBLAS_WORKSPACE_CONFIG", ":4096:8")
+import torch
+torch.backends.cuda.enable_flash_sdp(False)
+torch.backends.cuda.enable_mem_efficient_sdp(False)
+torch.backends.cuda.enable_math_sdp(True)
+torch.backends.cudnn.deterministic = True
+torch.backends.cudnn.benchmark = False
+torch.use_deterministic_algorithms(True, warn_only=True)
+```
+
+**Consequence for reading the numbers.** The recorded 0.6503 is one draw from a
+distribution with a run-to-run spread of order **0.8 pp**. A single-seed comparison
+between the Transformer and the CNN tower (0.6503 vs 0.6584, 0.0081 apart) is inside
+that noise. The CNN dual-tower numbers do not have this problem — §7.1 reproduces
+them to the last digit.
