@@ -94,6 +94,35 @@ Environment overrides read by the drivers and tooling (all optional):
 | `CSST_TRAIN_FITS`, `CSST_TEST_FITS`, `CSST_TEST_TRUTH` | `final_eval.py`, `make_unified_split.py` | `~/data/...` |
 | `CSST_UNIFIED_SRC`, `CSST_UNIFIED_OUTDIR` | `make_unified_split.py` | see §1.3 |
 
+#### Epochs and learning rate are not optional
+
+Every training step has a default for `--epochs` and `--lr`, so a command will run
+without them — but **none of the defaults equals the value the reference run used**:
+
+| Step | `--epochs` default | `--lr` default | **reference run** | LR schedule |
+|---|---|---|---|---|
+| GrowNet tower (§3.1) | 16 | 1e-3 | **10 / 1e-3** | none — constant |
+| FlatNet tower (§3.1) | 30 | 8e-4 | **10 / 8e-4** | `CosineAnnealingLR(T_max=epochs)` |
+| Stage A fusion head (§3.2) | 8 | 8e-4 | **20 / 5e-4** | step drop at `--lr-drop-epoch` |
+
+Two couplings make this worse than a plain wrong number:
+
+* **The FlatNet cosine schedule is parameterised by `epochs`**
+  (`CosineAnnealingLR(optimizer, T_max=args.epochs)`). Changing `--epochs` does not
+  just change how long it trains — it changes the entire learning-rate curve.
+* **Stage A drops the LR at `--lr-drop-epoch`.** The reference invocation is
+  `--epochs 20 --lr-drop-epoch 21`: the drop is deliberately placed one epoch *past*
+  the end so it never fires and the LR stays flat at 5e-4. Raising `--epochs` above
+  21 silently makes the LR collapse to 5e-5 mid-run.
+
+`EMA_SAVE_EPOCHS = (6,8,10,12,14,16,18,20)` is also hard-coded in
+`r48sh_stage_a.py`: with fewer than 20 epochs you cannot produce all eight EMA
+endpoints — and the 0.6876 candidate (EMA epoch 8) is one of them.
+
+Stage A's `--lr` applies to the **fusion head only**: both towers stay frozen
+(`--train-backbones` is off by default), matching `train_backbones=False` in the
+recorded config. `--backbone-lr` is only consulted when `--train-backbones` is set.
+
 ### 0.3 ⚠ Two different VAL splits are in play
 
 This matters more than anything else on this page. The reported numbers were **not
