@@ -1,4 +1,4 @@
-# CSST DLA Model Zoo — SOTA branch (`sota/hrh_final`)
+# CSST DLA Model Zoo — SOTA branch (`network/hrh_final`)
 
 This branch consolidates the **two current state-of-the-art systems** of the CSST DLA
 finder into one self-contained tree. It is cut from `main` and carries only the core
