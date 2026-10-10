@@ -82,6 +82,17 @@ SCORES = {
     "frozen_method_test_final": 0.6696572892,
 }
 
+# Forward signatures, computed on CPU from a fixed synthetic batch with the
+# canonical construction.  A checkpoint's weights are not enough to pin the
+# function -- constructor arguments such as the dilated tower's dilation schedule
+# never appear in the state dict -- so the output is hashed instead.
+FORWARD_HASH = {
+    "cnn_best": "3fe23ecde1e0a29d",
+    "cnn_stage_a": "825b5a12d67a9c72",
+    "cnn_reference": "faa8b552cfd48910",
+    "transformer": "1d25d16bb272bece",
+}
+
 CATALOGUE = CNN / "r48sh_seed51_ema_ep8" / "r38_catalogs_seed51.npz"
 CATALOGUE_FIELDS = {
     "E_E_TARGETID", "E_E_Z_QSO", "E_E_Z_DLA", "E_E_CONFIDENCE", "E_E_SNR", "E_E_LOG_NHI",
@@ -167,21 +178,26 @@ def build_from_config(cfg: dict):
         )
 
     # dual-tower fusion
-    from model import input_channels
-    from models.dilated_resnet_5head import _build_dilated_resnet_5head
+    from model import HybridDlaNet, input_channels
     from csst_dla_wzx_pkg.model import create_model
     from csst_dla_wzx_pkg.data import feature_channels
     from feature_fusion import DualTowerFusionNet
 
     dc = cfg["dilated_config"]
     wc = cfg["wzx_config"]
-    dilated = _build_dilated_resnet_5head(
-        n_bins=int(wc.get("spectrum_length", 194)),
+    # Build the dilated tower through HybridDlaNet, exactly as the training code
+    # does.  Its dilation schedule (stages=_stages_for(num_blocks)) and n_bins are
+    # NOT part of the state dict, so building the raw module with the
+    # _build_dilated_resnet_5head defaults yields identical weights but a
+    # different network.
+    dilated = HybridDlaNet(
         in_channels=input_channels(dc.get("input_mode", "flux")),
-        width=int(dc.get("hidden", 96)),
+        hidden=int(dc.get("hidden", 96)),
+        num_blocks=int(dc.get("num_blocks", 4)),
+        with_offset=bool(dc.get("with_offset", True)),
         norm_type=str(dc.get("norm_type", "layer")),
         head_layers=int(dc.get("head_layers", 1)),
-    )
+    ).model
     wzx = create_model(
         input_channels=int(wc.get("input_channels", feature_channels(wc.get("feature_mode", "all")))),
         base_channels=int(wc.get("base_channels", 96)),
@@ -199,26 +215,41 @@ def build_from_config(cfg: dict):
     )
 
 
-def forward_smoke(net, cfg: dict) -> str:
+def forward_hash(net, cfg: dict) -> str:
+    """Deterministic forward signature on a fixed synthetic batch (CPU, rounded).
+
+    A strict state-dict match is necessary but NOT sufficient: constructor
+    arguments that never reach the state dict -- the dilated tower's dilation
+    schedule, for instance -- change the function while leaving the weights
+    identical.  Hashing the output catches exactly that.
+    """
+    import hashlib
+    import numpy as np
     import torch
-    net.eval()
+
+    net = net.to("cpu").eval()
+    g = torch.Generator().manual_seed(0)
     n_bins = 194
     with torch.no_grad():
-        if hasattr(net, "wzx_backbone"):  # dual-tower
+        if hasattr(net, "wzx_backbone"):
             from model import input_channels
+            from csst_dla_wzx_pkg.data import feature_channels
             dc = cfg["dilated_config"]
             wc = cfg["wzx_config"]
-            from csst_dla_wzx_pkg.data import feature_channels
-            h = torch.zeros(2, input_channels(dc.get("input_mode", "flux")), n_bins)
-            w = torch.zeros(2, int(wc.get("input_channels", feature_channels(wc.get("feature_mode", "all")))), n_bins)
+            h = torch.randn(2, input_channels(dc.get("input_mode", "flux")), n_bins, generator=g)
+            w = torch.randn(
+                2,
+                int(wc.get("input_channels", feature_channels(wc.get("feature_mode", "all")))),
+                n_bins,
+                generator=g,
+            )
             z = torch.tensor([1.5, 2.0])
             out = net(h, w, z)
         else:
-            x = torch.zeros(2, int(cfg.get("in_channels", 6)), n_bins)
+            x = torch.randn(2, int(cfg.get("in_channels", 6)), n_bins, generator=g)
             out = net(x)
-    keys = sorted(out.keys())
-    shapes = {k: tuple(v.shape) for k, v in out.items()}
-    return f"{keys} shapes={shapes}"
+    blob = b"".join(np.round(out[k].numpy(), 5).tobytes() for k in sorted(out))
+    return hashlib.sha256(blob).hexdigest()[:16]
 
 
 # ---------------------------------------------------------------- checks
@@ -385,10 +416,30 @@ def _ckpt_check(tag: str):
 
     @check(f"forward:{tag}")
     def _inner3():
+        import torch
         ck = load_ckpt(ref["path"])
         net = build_from_config(ck["config"])
         net.load_state_dict(state_of(ck), strict=False)
-        return forward_smoke(net, ck["config"])
+        net.eval()
+        g = torch.Generator().manual_seed(1)
+        with torch.no_grad():
+            if hasattr(net, "wzx_backbone"):
+                out = net(torch.zeros(2, 6, 194), torch.zeros(2, 1, 194), torch.tensor([1.5, 2.0]))
+            else:
+                out = net(torch.zeros(2, int(ck["config"].get("in_channels", 6)), 194))
+        return f"{sorted(out)} shapes={ {k: tuple(v.shape) for k, v in out.items()} }"
+
+    @check(f"forward_hash:{tag}")
+    def _inner4():
+        ck = load_ckpt(ref["path"])
+        net = build_from_config(ck["config"])
+        net.load_state_dict(state_of(ck), strict=False)
+        got = forward_hash(net, ck["config"])
+        want = FORWARD_HASH[tag]
+        assert got == want, (
+            f"forward signature {got} != recorded {want} -- the rebuilt network is "
+            f"not the checkpointed one (check constructor-only arguments)")
+        return f"{got}"
 
 
 for _tag in RECORDED:

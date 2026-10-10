@@ -32,17 +32,77 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--threshold", type=float)
     parser.add_argument("--min-distance", type=int, default=10)
     parser.add_argument("--min-z-dla", type=float, default=1.10)
+    parser.add_argument(
+        "--dilated-checkpoint", default=None,
+        help="Override config['dilated_checkpoint']. Not needed for checkpoints that "
+             "embed dilated_config; use it only for legacy checkpoints.")
+    parser.add_argument(
+        "--wzx-checkpoint", default=None,
+        help="Override config['wzx_checkpoint']. Not needed for checkpoints that "
+             "embed wzx_config; use it only for legacy checkpoints.")
     return parser.parse_args()
 
 
-def load_fusion(path: str | Path, device: torch.device):
+def _build_dilated(config: dict, device: torch.device, override: str | None = None):
+    """Rebuild the dilated tower.
+
+    The fused checkpoint embeds ``dilated_config``, so the original tower
+    checkpoint is not needed.  ``override`` (``--dilated-checkpoint``) forces the
+    legacy path, for checkpoints that carry only the training-time location.
+    """
+    from model import HybridDlaNet, input_channels
+
+    if override is None and "dilated_config" in config:
+        dc = config["dilated_config"]
+        print("[fusion] building the dilated tower from the embedded dilated_config", flush=True)
+        # Build through HybridDlaNet, exactly as the training code does.  The
+        # dilation schedule (stages=_stages_for(num_blocks)) and n_bins are NOT
+        # part of the state dict, so building the raw module with defaults gives
+        # identical weights but a different network.
+        return HybridDlaNet(
+            in_channels=input_channels(dc.get("input_mode", "flux")),
+            hidden=int(dc.get("hidden", 96)),
+            num_blocks=int(dc.get("num_blocks", 4)),
+            with_offset=bool(dc.get("with_offset", True)),
+            norm_type=str(dc.get("norm_type", "layer")),
+            head_layers=int(dc.get("head_layers", 1)),
+        ).model.to(device)
+    path = override or config["dilated_checkpoint"]
+    print(f"[fusion] loading the dilated tower from {path}", flush=True)
+    dilated, _ = load_checkpoint(path, device)
+    return dilated.model
+
+
+def _build_wzx(config: dict, device: torch.device, override: str | None = None):
+    """Rebuild the WZX tower, same policy as :func:`_build_dilated`."""
+    from csst_dla_wzx_pkg.data import feature_channels
+    from csst_dla_wzx_pkg.model import create_model
+
+    if override is None and "wzx_config" in config:
+        wc = config["wzx_config"]
+        print("[fusion] building the WZX tower from the embedded wzx_config", flush=True)
+        return create_model(
+            input_channels=int(
+                wc.get("input_channels", feature_channels(wc.get("feature_mode", "all")))
+            ),
+            base_channels=int(wc.get("base_channels", 96)),
+            num_blocks=int(wc.get("num_blocks", 8)),
+            dropout=float(wc.get("dropout", 0.1)),
+            use_context_channels=bool(wc.get("use_context_channels", True)),
+        ).to(device)
+    path = override or config["wzx_checkpoint"]
+    print(f"[fusion] loading the WZX tower from {path}", flush=True)
+    wzx, _ = load_model_from_checkpoint(path, device)
+    return wzx
+
+
+def load_fusion(path: str | Path, device: torch.device,
+                dilated_ckpt: str | None = None, wzx_ckpt: str | None = None):
     checkpoint = torch.load(path, map_location=device)
     config = checkpoint["config"]
-    dilated, _ = load_checkpoint(config["dilated_checkpoint"], device)
-    wzx, _ = load_model_from_checkpoint(config["wzx_checkpoint"], device)
     model = DualTowerFusionNet(
-        dilated.model,
-        wzx,
+        _build_dilated(config, device, dilated_ckpt),
+        _build_wzx(config, device, wzx_ckpt),
         merge_mode=config["merge_mode"],
         width=int(config["fusion_width"]),
         depth=int(config["fusion_depth"]),
@@ -76,7 +136,8 @@ def predict(model, dataset, device: torch.device, batch_size: int) -> dict[str, 
 def main() -> None:
     args = parse_args()
     device = resolve_device(args.device)
-    model, checkpoint = load_fusion(args.checkpoint, device)
+    model, checkpoint = load_fusion(args.checkpoint, device,
+                                  args.dilated_checkpoint, args.wzx_checkpoint)
     fusion_config = checkpoint["config"]
     dilated_input_mode = str(
         fusion_config.get("dilated_input_mode", fusion_config.get("dilated_config", {}).get("input_mode", "all"))

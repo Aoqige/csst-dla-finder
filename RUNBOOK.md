@@ -31,6 +31,19 @@ Sanity check the branch before anything else — no data required:
 python3 $REPO/sota/verify.py
 ```
 
+To prove the branch actually **trains** end to end, run the smoke test. It exercises
+every training entry point at 1 epoch / a few hundred samples, then reproduces the
+SOTA number through Stage B and runs inference + scoring. Steps whose inputs are
+missing are skipped, not failed.
+
+```bash
+bash $REPO/sota/smoke_test.sh
+```
+
+Last measured: **9 passed, 0 failed, 0 skipped** — including
+`R38_Final = 0.687569327685616` — from a clean `git archive` of this branch, with the
+external `csst_dla_wzx_pkg` removed from the machine.
+
 ### 0.1 Data and paths
 
 The challenge data is **not** committed. Export the paths once:
@@ -291,8 +304,13 @@ EMA epoch 8**.
 Fits the 129 parameters of the logNHI head by equal-weight OLS on the frozen model's
 TRAIN-split matched objects, then writes back in float32.
 
+> **Use the right driver.** `r38_matched_wls.py` and `r39_matched_wls.py` carry a
+> hard-coded reference dict covering **seeds 42/43/44 and 45 only**; any other seed
+> raises `KeyError` *after* the expensive decode. For seed 51 use
+> `r48sh_stage_b.py`, which is the same policy with that lookup made optional.
+
 ```bash
-$PY $REPO/sota/drivers/r38_matched_wls.py \
+$PY $REPO/sota/drivers/r48sh_stage_b.py \
   --seed 51 \
   --e-ckpt $R48/seed51/ema_ep8.pt \
   --targets $R12/cnn_targets_unified_seed42_sig15.npz \
@@ -303,6 +321,9 @@ $PY $REPO/sota/drivers/r38_matched_wls.py \
 
 Output: `r38_deployable_seed51.pt` (the 0.6876 model), `r38_matched_wls_head_seed51.pt`,
 `r38_matched_wls_seed51.json`, `r38_catalogs_seed51.npz`.
+
+The same command with `r38_matched_wls.py` and `--seed 42` (or 43, 44) reproduces the
+R38 seeds; `r39_matched_wls.py --seed 45` reproduces the R39 seed.
 
 ### 3.4 Rank the candidates
 
@@ -343,6 +364,11 @@ $PY $REPO/hybrid_ensemble/score_test.py \
 ```
 
 ### 4.2 Ensemble evaluation over several members
+
+`evaluate_hybrid.py` loads **single towers** — `arch` = `dilated` or `transformer*`.
+It cannot load a dual-tower fusion checkpoint (whose `config` has `merge_mode` /
+`dilated_config` / `wzx_config` and no `input_mode`). Evaluate the fusion model with
+`predict_feature_fusion.py` + `score_test.py` (§5.2), or through the Stage-B driver.
 
 ```bash
 $PY $REPO/hybrid_ensemble/evaluate_hybrid.py \
@@ -394,6 +420,11 @@ $PY $REPO/hybrid_ensemble/predict_feature_fusion.py \
   --out $RUNS/r48sh_seed51/submission.csv \
   --threshold 0.45 --min-distance 10 --min-z-dla 1.1 --device cuda
 ```
+
+Both towers are rebuilt from the `dilated_config` / `wzx_config` blocks embedded in
+the checkpoint, so **no external tower checkpoint is needed** — the training-time
+paths recorded inside it are not read. (`--dilated-checkpoint` / `--wzx-checkpoint`
+override that, for legacy checkpoints that lack the embedded configs.)
 
 Then score it with `score_test.py` (§4.1).
 
