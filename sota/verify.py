@@ -279,6 +279,84 @@ def _compile_all():
     return "all .py compile"
 
 
+def _bound_names(tree):
+    """Names bound anywhere in the module (imports, assignments, args, ...)."""
+    import ast
+    import builtins
+    names = set(dir(builtins))
+    names.update({"__file__", "__name__", "__doc__", "__package__", "__spec__",
+                  "self", "cls"})
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for a in node.names:
+                names.add((a.asname or a.name).split(".")[0])
+        elif isinstance(node, ast.ImportFrom):
+            for a in node.names:
+                names.add(a.asname or a.name)
+        elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            names.add(node.name)
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                a = node.args
+                for arg in (*a.posonlyargs, *a.args, *a.kwonlyargs):
+                    names.add(arg.arg)
+                if a.vararg:
+                    names.add(a.vararg.arg)
+                if a.kwarg:
+                    names.add(a.kwarg.arg)
+        elif isinstance(node, ast.Lambda):
+            a = node.args
+            for arg in (*a.posonlyargs, *a.args, *a.kwonlyargs):
+                names.add(arg.arg)
+            if a.vararg:
+                names.add(a.vararg.arg)
+            if a.kwarg:
+                names.add(a.kwarg.arg)
+        elif isinstance(node, ast.Name) and isinstance(node.ctx, (ast.Store, ast.Del)):
+            names.add(node.id)
+        elif isinstance(node, (ast.Global, ast.Nonlocal)):
+            names.update(node.names)
+        elif isinstance(node, ast.ExceptHandler) and node.name:
+            names.add(node.name)
+        elif isinstance(node, ast.comprehension):
+            for t in ast.walk(node.target):
+                if isinstance(t, ast.Name):
+                    names.add(t.id)
+        elif isinstance(node, ast.withitem) and node.optional_vars is not None:
+            for t in ast.walk(node.optional_vars):
+                if isinstance(t, ast.Name):
+                    names.add(t.id)
+    return names
+
+
+@check("no_unbound_names")
+def _no_unbound():
+    """Catch names used but never imported/assigned -- the failure mode of a
+    mechanical path rewrite (e.g. `os.environ` in a file without `import os`)."""
+    import ast
+    bad = []
+    for sub in ("hybrid_ensemble", "scripts", "src", "sota"):
+        for p in sorted((ROOT / sub).rglob("*.py")):
+            try:
+                tree = ast.parse(p.read_text(encoding="utf-8"), filename=str(p))
+            except SyntaxError as exc:
+                bad.append(f"{p.relative_to(ROOT)}: SYNTAX {exc}")
+                continue
+            names = _bound_names(tree)
+            for node in ast.walk(tree):
+                hit = None
+                if isinstance(node, ast.Attribute) and isinstance(node.value, ast.Name):
+                    if node.value.id not in names:
+                        hit = f"{node.lineno}: `{node.value.id}.`"
+                elif isinstance(node, ast.Name) and isinstance(node.ctx, ast.Load):
+                    if node.id not in names:
+                        hit = f"{node.lineno}: `{node.id}`"
+                if hit:
+                    bad.append(f"{p.relative_to(ROOT)} {hit}")
+    if bad:
+        raise RuntimeError("unbound names: " + "; ".join(bad[:8]))
+    return "no unbound names"
+
+
 def _ckpt_check(tag: str):
     ref = RECORDED[tag]
 
@@ -326,6 +404,21 @@ def _catalogue():
     n = int(z["R38_TARGETID"].size)
     assert n == 1653, f"R38_TARGETID size {n} != 1653"
     return f"{n} predictions, {len(got)} fields"
+
+
+@check("runbook_paths")
+def _runbook_paths():
+    """Every `$REPO/...` file referenced by RUNBOOK.md must exist."""
+    import re
+    rb = ROOT / "RUNBOOK.md"
+    if not rb.exists():
+        return "no RUNBOOK.md"
+    text = rb.read_text(encoding="utf-8")
+    refs = sorted(set(re.findall(r"\$REPO/([A-Za-z0-9_./-]+\.(?:py|md|json|txt|npz))", text)))
+    missing = [r for r in refs if not (ROOT / r).exists()]
+    if missing:
+        raise RuntimeError("RUNBOOK references missing files: " + ", ".join(missing))
+    return f"{len(refs)} referenced paths exist"
 
 
 # ---------------------------------------------------------------- optional rescore

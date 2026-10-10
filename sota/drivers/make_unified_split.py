@@ -23,23 +23,45 @@ R10 侦察发现：两塔训练用的 val 划分**是两套独立随机切分**
 """
 from __future__ import annotations
 
+import os
+
 import json
 import sys
+import argparse
 from pathlib import Path
 
 import numpy as np
 
-SRC = Path.home() / "csst_dla_runs/20260929_tftune/common/cnn_targets_seed42_sig15.npz"
-OUTDIR = Path.home() / "csst_dla_runs/20261003_r12"
-OUT_NPZ = OUTDIR / "cnn_targets_unified_seed42_sig15.npz"
-OUT_SPLITS = OUTDIR / "splits_unified.npz"
+DEFAULT_SRC = Path(os.environ.get(
+    "CSST_UNIFIED_SRC",
+    str(Path.home() / "csst_dla_runs/20260929_tftune/common/cnn_targets_seed42_sig15.npz")))
+DEFAULT_OUTDIR = Path(os.environ.get(
+    "CSST_UNIFIED_OUTDIR", str(Path.home() / "csst_dla_runs/20261003_r12")))
 SEED = 42
 VAL_SIZE = 0.2
+
+
+def parse_args() -> "argparse.Namespace":
+    import argparse
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--src", default=str(DEFAULT_SRC),
+                    help="input targets npz to re-split (its train_idx/val_idx are reconstructed)")
+    ap.add_argument("--outdir", default=str(DEFAULT_OUTDIR), help="output directory")
+    ap.add_argument("--seed", type=int, default=SEED)
+    ap.add_argument("--val-size", type=float, default=VAL_SIZE)
+    return ap.parse_args()
 
 TARGET_KEYS = ["center", "region", "lognhi", "mask"]
 
 
 def main() -> int:
+    args = parse_args()
+    SRC = Path(args.src)
+    OUTDIR = Path(args.outdir)
+    OUT_NPZ = OUTDIR / "cnn_targets_unified_seed42_sig15.npz"
+    OUT_SPLITS = OUTDIR / "splits_unified.npz"
+    SEED = int(args.seed)
+    VAL_SIZE = float(args.val_size)
     OUTDIR.mkdir(parents=True, exist_ok=True)
     with np.load(SRC) as s:
         keys = list(s.files)

@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Forward once, decode+score across multiple thresholds."""
 from __future__ import annotations
+
+import _env  # noqa: E402
 import sys, json, subprocess, argparse
 from pathlib import Path
 import numpy as np

@@ -3,6 +3,8 @@
 """Aggregate the three R38 per-seed JSONs into the report tables."""
 from __future__ import annotations
 
+import os
+
 import json
 import statistics as st
 from pathlib import Path
