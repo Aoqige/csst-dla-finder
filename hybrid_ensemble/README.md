@@ -3,6 +3,7 @@
 Shared five-head output contract: every model exports
 `{heatmap, lognhi, count_logits, offset}` per pixel, so backbones are swappable into
 `decode.py`, `evaluate_hybrid.py` and the offline tensor cache without downstream change.
+For first-time operation, start with [the handoff guide](../HANDOFF.md); this page is the code and entry-point map.
 
 ## Shared infrastructure
 
